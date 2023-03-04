@@ -1,0 +1,27 @@
+[package]
+name = "rustyBoids"
+version = "0.0.1"
+authors = ["DE SMET Enguerrand"]
+edition = "2021"
+
+[workspace]
+members = ["crates/*"]
+
+[dependencies]
+oxyde = {git = 'https://github.com/dsmtE/oxyde' }
+
+anyhow = "1"
+
+# logging
+log = "0.4"
+fern = {version = "0.6", features = [ "colored" ] }
+chrono = "0.4"
+
+
+# Overriding repository URL to work with git submodules
+[patch."https://github.com/dsmtE/oxyde"]
+oxyde = { path = "crates/oxyde" }
+
+[[bin]]
+name = "rustyBoids"
+path = "src/main.rs"
