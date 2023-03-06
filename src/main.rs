@@ -1,4 +1,5 @@
 mod app;
+mod boids;
 
 use fern::colors::ColoredLevelConfig;
 fn main() {
@@ -37,7 +38,7 @@ fn main() {
         oxyde::RenderingConfig {
             power_preference: oxyde::wgpu::PowerPreference::HighPerformance,
             ..oxyde::RenderingConfig::default()
-        }
+        },
     )
     .unwrap();
 }
