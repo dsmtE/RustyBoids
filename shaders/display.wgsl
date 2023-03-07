@@ -14,7 +14,7 @@ fn vs_main(
 ) -> VertexOutput {
     var out: VertexOutput;
 
-    let angle = -atan2(boid.velocity.y, boid.velocity.x);
+    let angle = -atan2(boid.velocity.x, boid.velocity.y);
     let c = cos(angle);
     let s = sin(angle);
     let pos = vec2(
