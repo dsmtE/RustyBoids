@@ -34,10 +34,12 @@ fn main() {
         oxyde::AppConfig {
             is_resizable: true,
             title: "Rusty Boids",
-            icon: None,
+            control_flow: oxyde::winit::event_loop::ControlFlow::Poll,
+            ..oxyde::AppConfig::default()
         },
         oxyde::RenderingConfig {
             power_preference: oxyde::wgpu::PowerPreference::HighPerformance,
+            // window_surface_present_mode: oxyde::wgpu::PresentMode::Immediate,
             ..oxyde::RenderingConfig::default()
         },
     )
