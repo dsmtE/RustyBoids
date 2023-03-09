@@ -18,8 +18,8 @@ struct Boids {
 }
 
 @group(0) @binding(0) var<uniform> simulationParameters : SimulationParameters;
-@group(0) @binding(1) var<storage, read> boidsSrc : Boids;
-@group(0) @binding(2) var<storage, read_write> boidsDst : Boids;
+@group(1) @binding(0) var<storage, read> boidsSrc : Boids;
+@group(1) @binding(1) var<storage, read_write> boidsDst : Boids;
 
 @compute @workgroup_size(64)
 fn cs_main(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {

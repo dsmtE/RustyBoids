@@ -20,6 +20,7 @@ pub struct RustyBoids {
 
     simulation_parameters_uniform_buffer_content: SimulationParametersUniformBufferContent,
     simulation_parameters_uniform_buffer: UniformBuffer<SimulationParametersUniformBufferContent>,
+    simulation_parameters_bind_group: wgpu::BindGroup,
 }
 
 pub struct PingPongBuffer {
@@ -103,12 +104,15 @@ impl oxyde::App for RustyBoids {
             source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/compute.wgsl").into()),
         });
 
-        let compute_bind_group_layout_with_desc = BindGroupLayoutBuilder::new()
+        let simulation_parameters_bind_group_layout_with_desc = BindGroupLayoutBuilder::new()
         .add_binding_compute(wgpu::BindingType::Buffer {
             ty: wgpu::BufferBindingType::Uniform,
             has_dynamic_offset: false,
             min_binding_size: wgpu::BufferSize::new(std::mem::size_of::<SimulationParametersUniformBufferContent>() as _),
         })
+        .create(&_app_state.device, Some("compute_bind_group_layout"));
+    
+        let compute_bind_group_layout_with_desc = BindGroupLayoutBuilder::new()
         .add_binding_compute(wgpu::BindingType::Buffer {
             ty: wgpu::BufferBindingType::Storage { read_only: true },
             has_dynamic_offset: false,
@@ -121,31 +125,36 @@ impl oxyde::App for RustyBoids {
         })
         .create(&_app_state.device, Some("compute_bind_group_layout"));
 
+        let simulation_parameters_bind_group = BindGroupBuilder::new(&simulation_parameters_bind_group_layout_with_desc)
+        .resource(simulation_parameters_uniform_buffer.binding_resource())
+        .create(&_app_state.device, Some("simulation_parameters_bind_group"));
+
+        let compute_bind_groups = PingPongBindGroup {
+            ping: BindGroupBuilder::new(&compute_bind_group_layout_with_desc)
+                .resource(boid_buffers.pong.as_entire_binding())
+                .resource(boid_buffers.ping.as_entire_binding())
+                .create(&_app_state.device, Some("ping_compute_bind_group_layout")),
+
+            pong: BindGroupBuilder::new(&compute_bind_group_layout_with_desc)
+                .resource(boid_buffers.ping.as_entire_binding())
+                .resource(boid_buffers.pong.as_entire_binding())
+                .create(&_app_state.device, Some("pong_compute_bind_group_layout"))
+        };
+
         let compute_pipeline = _app_state.device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("Compute pipeline"),
             layout: Some(&_app_state.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Compute Pipeline"),
-                bind_group_layouts: &[&compute_bind_group_layout_with_desc.layout],
+                bind_group_layouts: &[
+                    &simulation_parameters_bind_group_layout_with_desc.layout,
+                    &compute_bind_group_layout_with_desc.layout
+                ],
                 push_constant_ranges: &[],
             })),
             module: &compute_shader,
             entry_point: "cs_main",
         });
-
-        let compute_bind_groups = PingPongBindGroup {
-            ping: BindGroupBuilder::new(&compute_bind_group_layout_with_desc)
-                .resource(simulation_parameters_uniform_buffer.binding_resource())
-                .resource(boid_buffers.pong.as_entire_binding())
-                .resource(boid_buffers.ping.as_entire_binding())
-                .create(&_app_state.device, Some("compute_bind_group_layout")),
-
-            pong: BindGroupBuilder::new(&compute_bind_group_layout_with_desc)
-                .resource(simulation_parameters_uniform_buffer.binding_resource())
-                .resource(boid_buffers.ping.as_entire_binding())
-                .resource(boid_buffers.pong.as_entire_binding())
-                .create(&_app_state.device, Some("compute_bind_group_layout"))
-        };
-
+        
         // Render Pipeline
         let display_shader = _app_state.device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Display Shader"),
@@ -200,6 +209,7 @@ impl oxyde::App for RustyBoids {
             compute_pipeline,
             boid_buffers,
             compute_bind_groups,
+            simulation_parameters_bind_group,
             vertices_buffer,
             simulation_parameters_uniform_buffer_content,
             simulation_parameters_uniform_buffer,
@@ -294,7 +304,8 @@ impl oxyde::App for RustyBoids {
 
             compute_pass.set_pipeline(&self.compute_pipeline);
             let compute_bind_group = if self.frame_count % 2 == 0 { &self.compute_bind_groups.ping } else { &self.compute_bind_groups.pong };
-            compute_pass.set_bind_group(0, &compute_bind_group, &[]);
+            compute_pass.set_bind_group(0, &self.simulation_parameters_bind_group, &[]);
+            compute_pass.set_bind_group(1, &compute_bind_group, &[]);
             compute_pass.dispatch_workgroups((self.boids_data.len() / WORKGROUP_SIZE + 1) as _, 1, 1);
         }
         _encoder.pop_debug_group();
