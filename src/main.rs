@@ -1,5 +1,6 @@
 mod app;
 mod boids;
+mod simulation;
 
 use fern::colors::ColoredLevelConfig;
 fn main() {

@@ -20,7 +20,7 @@ fn vs_main(
     let pos = vec2(
         position.x * c - position.y * s,
         position.x * s + position.y * c,
-    );
+    )*0.3;
 
     out.clip_position = vec4<f32>(pos.x + boid.position.x, pos.y + boid.position.y, 0.0, 1.0);
     return out;
