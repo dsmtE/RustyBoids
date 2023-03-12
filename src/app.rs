@@ -24,7 +24,6 @@ pub struct RustyBoids {
     compute_pipeline: wgpu::ComputePipeline,
     vertices_buffer: wgpu::Buffer,
     boid_buffers: PingPongBuffer,
-    frame_count: usize,
 
     simulation_parameters_uniform_buffer_content: SimulationParametersUniformBufferContent,
     simulation_parameters_uniform_buffer: UniformBuffer<SimulationParametersUniformBufferContent>,
@@ -161,7 +160,6 @@ impl oxyde::App for RustyBoids {
             vertices_buffer,
             simulation_parameters_uniform_buffer_content,
             simulation_parameters_uniform_buffer,
-            frame_count: 0,
         }
     }
 
@@ -290,7 +288,6 @@ impl oxyde::App for RustyBoids {
         }
         _encoder.pop_debug_group();
 
-        self.frame_count += 1;
         Ok(())
     }
 }
