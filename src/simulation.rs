@@ -1,5 +1,3 @@
-use oxyde::{wgpu_utils::uniform_buffer::UniformBuffer, wgpu};
-
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct SimulationParametersUniformBufferContent {
