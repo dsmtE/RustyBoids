@@ -11,8 +11,9 @@ use oxyde::{
     AppState,
 };
 use rand::prelude::Distribution;
+use wgpu_profiler::{wgpu_profiler, GpuProfiler};
 
-use crate::{boids::BoidData, simulation::SimulationParametersUniformBufferContent};
+use crate::{boids::BoidData, simulation::SimulationParametersUniformBufferContent, utils::setup_ui_profiler};
 
 use rand::SeedableRng;
 
@@ -24,6 +25,8 @@ pub struct RustyBoids {
     compute_pipeline: wgpu::ComputePipeline,
     vertices_buffer: wgpu::Buffer,
     boid_buffers: PingPongBuffer,
+
+    simulation_profiler: GpuProfiler,
 
     simulation_parameters_uniform_buffer_content: SimulationParametersUniformBufferContent,
     simulation_parameters_uniform_buffer: UniformBuffer<SimulationParametersUniformBufferContent>,
@@ -144,7 +147,9 @@ impl oxyde::App for RustyBoids {
             multiview: None,
         });
 
-
+        
+        let simulation_profiler = 
+        GpuProfiler::new(16, _app_state.queue.get_timestamp_period(), _app_state.device.features());
         _app_state.device.on_uncaptured_error(Box::new(|err| panic!("{}", err)));
 
         if let Ok(err) = rx.try_recv() {
@@ -157,6 +162,7 @@ impl oxyde::App for RustyBoids {
             compute_pipeline,
             boid_buffers,
             simulation_parameters_bind_group,
+            simulation_profiler,
             vertices_buffer,
             simulation_parameters_uniform_buffer_content,
             simulation_parameters_uniform_buffer,
@@ -223,6 +229,15 @@ impl oxyde::App for RustyBoids {
                 }).prefix("Separation scale"));
 
             });
+
+            egui::CollapsingHeader::new("Wgpu Profiler").default_open(true).show(ui, |ui| {
+                if let Some(latest_profiler_results) = self.simulation_profiler.process_finished_frame() {
+                    setup_ui_profiler(ui, &latest_profiler_results, 1);
+                }else {
+                    ui.label("No profiler results yet");
+                }
+            });
+            
         });
 
         Ok(())
@@ -242,52 +257,63 @@ impl oxyde::App for RustyBoids {
         _encoder: &mut wgpu::CommandEncoder,
         _output_view: &wgpu::TextureView,
     ) -> Result<(), wgpu::SurfaceError> {
-        _encoder.push_debug_group("Compute Boids");
-        {
-            let mut compute_pass = _encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("Compute Pass") });
+        wgpu_profiler!("Render", self.simulation_profiler, _encoder, &_app_state.device, {
+        
+            wgpu_profiler!("Compute Boids", self.simulation_profiler, _encoder, &_app_state.device, {
+                let mut compute_pass = _encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("Compute Pass") });
 
-            compute_pass.set_pipeline(&self.compute_pipeline);
-            compute_pass.set_bind_group(0, &self.simulation_parameters_bind_group, &[]);
-            compute_pass.set_bind_group(1, &self.boid_buffers.get_next_target_bind_group(), &[]);
-            compute_pass.dispatch_workgroups((self.boids_data.len() / WORKGROUP_SIZE + 1) as _, 1, 1);
-        }
-        _encoder.pop_debug_group();
-
-        _encoder.push_debug_group("Render Boids");
-        {
-            let mut screen_render_pass = _encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: _output_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: true },
-                })],
-                depth_stencil_attachment: None,
+                compute_pass.set_pipeline(&self.compute_pipeline);
+                compute_pass.set_bind_group(0, &self.simulation_parameters_bind_group, &[]);
+                compute_pass.set_bind_group(1, &self.boid_buffers.get_next_target_bind_group(), &[]);
+                compute_pass.dispatch_workgroups((self.boids_data.len() / WORKGROUP_SIZE + 1) as _, 1, 1);
             });
 
-            // Update viewport accordingly to the Ui to display in the available rect
-            // It must be multiplied by window scale factor as render pass use physical pixels screen size
+            wgpu_profiler!("Render Boids", self.simulation_profiler, _encoder, &_app_state.device, {
+            
+                let mut screen_render_pass = _encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("Render Pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: _output_view,
+                        resolve_target: None,
+                        ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: true },
+                    })],
+                    depth_stencil_attachment: None,
+                });
 
-            let window_scale_factor = _app_state.window.scale_factor() as f32;
-            let available_rect = _app_state.gui.available_rect;
-            let available_rect_size = available_rect.size();
+                // Update viewport accordingly to the Ui to display in the available rect
+                // It must be multiplied by window scale factor as render pass use physical pixels screen size
 
-            screen_render_pass.set_viewport(
-                available_rect.min.x * window_scale_factor,
-                available_rect.min.y * window_scale_factor,
-                available_rect_size.x * window_scale_factor,
-                available_rect_size.y * window_scale_factor,
-                0.0,
-                1.0,
-            );
+                let window_scale_factor = _app_state.window.scale_factor() as f32;
+                let available_rect = _app_state.gui.available_rect;
+                let available_rect_size = available_rect.size();
 
-            screen_render_pass.set_pipeline(&self.render_pipeline);
-            screen_render_pass.set_vertex_buffer(0, self.vertices_buffer.slice(..));
-            screen_render_pass.set_vertex_buffer(1, self.boid_buffers.get_target_buffer().slice(..));
-            screen_render_pass.draw(0..3, 0..self.boids_data.len() as _);
-        }
-        _encoder.pop_debug_group();
+                screen_render_pass.set_viewport(
+                    available_rect.min.x * window_scale_factor,
+                    available_rect.min.y * window_scale_factor,
+                    available_rect_size.x * window_scale_factor,
+                    available_rect_size.y * window_scale_factor,
+                    0.0,
+                    1.0,
+                );
+
+                screen_render_pass.set_pipeline(&self.render_pipeline);
+                screen_render_pass.set_vertex_buffer(0, self.vertices_buffer.slice(..));
+                screen_render_pass.set_vertex_buffer(1, self.boid_buffers.get_target_buffer().slice(..));
+                screen_render_pass.draw(0..3, 0..self.boids_data.len() as _);
+            });
+
+        });
+
+        self.simulation_profiler.resolve_queries(_encoder);
 
         Ok(())
     }
+
+    fn post_render(&mut self, _app_state: &mut AppState) -> Result<()> {
+        self.simulation_profiler.end_frame().unwrap();
+
+        Ok(())
+    }
+
+
 }

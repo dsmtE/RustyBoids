@@ -1,6 +1,7 @@
 mod app;
 mod boids;
 mod simulation;
+mod utils;
 
 use fern::colors::ColoredLevelConfig;
 fn main() {
@@ -40,7 +41,10 @@ fn main() {
         oxyde::RenderingConfig {
             power_preference: oxyde::wgpu::PowerPreference::HighPerformance,
             // window_surface_present_mode: oxyde::wgpu::PresentMode::Immediate,
-            ..oxyde::RenderingConfig::default()
+            ..oxyde::RenderingConfig {
+                device_features: wgpu_profiler::GpuProfiler::ALL_WGPU_TIMER_FEATURES | oxyde::wgpu::Features::default(),
+                ..oxyde::RenderingConfig::default()
+            }
         },
     )
     .unwrap();
