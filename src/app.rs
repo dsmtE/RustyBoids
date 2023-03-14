@@ -84,16 +84,16 @@ impl oxyde::App for RustyBoids {
         });
 
         let simulation_parameters_bind_group_layout_with_desc = BindGroupLayoutBuilder::new()
-        .add_binding_compute(wgpu::BindingType::Buffer {
-            ty: wgpu::BufferBindingType::Uniform,
-            has_dynamic_offset: false,
-            min_binding_size: wgpu::BufferSize::new(std::mem::size_of::<SimulationParametersUniformBufferContent>() as _),
-        })
-        .create(&_app_state.device, Some("compute_bind_group_layout"));
-    
+            .add_binding_compute(wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: wgpu::BufferSize::new(std::mem::size_of::<SimulationParametersUniformBufferContent>() as _),
+            })
+            .create(&_app_state.device, Some("compute_bind_group_layout"));
+
         let simulation_parameters_bind_group = BindGroupBuilder::new(&simulation_parameters_bind_group_layout_with_desc)
-        .resource(simulation_parameters_uniform_buffer.binding_resource())
-        .create(&_app_state.device, Some("simulation_parameters_bind_group"));
+            .resource(simulation_parameters_uniform_buffer.binding_resource())
+            .create(&_app_state.device, Some("simulation_parameters_bind_group"));
 
         let compute_pipeline = _app_state.device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("Compute pipeline"),
@@ -147,9 +147,7 @@ impl oxyde::App for RustyBoids {
             multiview: None,
         });
 
-        
-        let simulation_profiler = 
-        GpuProfiler::new(16, _app_state.queue.get_timestamp_period(), _app_state.device.features());
+        let simulation_profiler = GpuProfiler::new(16, _app_state.queue.get_timestamp_period(), _app_state.device.features());
         _app_state.device.on_uncaptured_error(Box::new(|err| panic!("{}", err)));
 
         if let Ok(err) = rx.try_recv() {
@@ -169,84 +167,97 @@ impl oxyde::App for RustyBoids {
         }
     }
 
-
     fn handle_event(&mut self, _app_state: &mut AppState, _event: &winit::event::Event<()>) -> Result<()> { Ok(()) }
 
     fn render_gui(&mut self, _ctx: &egui::Context) -> Result<()> {
-        
         egui::SidePanel::right("right panel").resizable(true).show(&_ctx, |ui| {
-
             egui::CollapsingHeader::new("Simulation settings").default_open(true).show(ui, |ui| {
+                ui.add(
+                    egui::Slider::from_get_set(0.0..=0.1, |optional_value: Option<f64>| {
+                        if let Some(v) = optional_value {
+                            self.simulation_parameters_uniform_buffer_content.delta_t = v as f32;
+                        }
+                        self.simulation_parameters_uniform_buffer_content.delta_t as f64
+                    })
+                    .prefix("Delta t"),
+                );
 
+                ui.add(
+                    egui::Slider::from_get_set(0.0..=0.1, |optional_value: Option<f64>| {
+                        if let Some(v) = optional_value {
+                            self.simulation_parameters_uniform_buffer_content.cohesion_distance = v as f32;
+                        }
+                        self.simulation_parameters_uniform_buffer_content.cohesion_distance as f64
+                    })
+                    .prefix("Cohesion distance"),
+                );
 
-                ui.add(egui::Slider::from_get_set(0.0..=0.1, |optional_value: Option<f64>| {
-                    if let Some(v) = optional_value {
-                        self.simulation_parameters_uniform_buffer_content.delta_t = v as f32;
-                    }
-                    self.simulation_parameters_uniform_buffer_content.delta_t as f64
-                }).prefix("Delta t"));
+                ui.add(
+                    egui::Slider::from_get_set(0.0..=0.1, |optional_value: Option<f64>| {
+                        if let Some(v) = optional_value {
+                            self.simulation_parameters_uniform_buffer_content.aligment_distance = v as f32;
+                        }
+                        self.simulation_parameters_uniform_buffer_content.aligment_distance as f64
+                    })
+                    .prefix("Aligment distance"),
+                );
 
-                ui.add(egui::Slider::from_get_set(0.0..=0.1, |optional_value: Option<f64>| {
-                    if let Some(v) = optional_value {
-                        self.simulation_parameters_uniform_buffer_content.cohesion_distance = v as f32;
-                    }
-                    self.simulation_parameters_uniform_buffer_content.cohesion_distance as f64
-                }).prefix("Cohesion distance"));
+                ui.add(
+                    egui::Slider::from_get_set(0.0..=0.1, |optional_value: Option<f64>| {
+                        if let Some(v) = optional_value {
+                            self.simulation_parameters_uniform_buffer_content.separation_distance = v as f32;
+                        }
+                        self.simulation_parameters_uniform_buffer_content.separation_distance as f64
+                    })
+                    .prefix("Separation distance"),
+                );
 
-                ui.add(egui::Slider::from_get_set(0.0..=0.1, |optional_value: Option<f64>| {
-                    if let Some(v) = optional_value {
-                        self.simulation_parameters_uniform_buffer_content.aligment_distance = v as f32;
-                    }
-                    self.simulation_parameters_uniform_buffer_content.aligment_distance as f64
-                }).prefix("Aligment distance"));
+                ui.add(
+                    egui::Slider::from_get_set(0.0..=0.1, |optional_value: Option<f64>| {
+                        if let Some(v) = optional_value {
+                            self.simulation_parameters_uniform_buffer_content.cohesion_scale = v as f32;
+                        }
+                        self.simulation_parameters_uniform_buffer_content.cohesion_scale as f64
+                    })
+                    .prefix("Cohesion scale"),
+                );
 
-                ui.add(egui::Slider::from_get_set(0.0..=0.1, |optional_value: Option<f64>| {
-                    if let Some(v) = optional_value {
-                        self.simulation_parameters_uniform_buffer_content.separation_distance = v as f32;
-                    }
-                    self.simulation_parameters_uniform_buffer_content.separation_distance as f64
-                }).prefix("Separation distance"));
+                ui.add(
+                    egui::Slider::from_get_set(0.0..=0.1, |optional_value: Option<f64>| {
+                        if let Some(v) = optional_value {
+                            self.simulation_parameters_uniform_buffer_content.aligment_scale = v as f32;
+                        }
+                        self.simulation_parameters_uniform_buffer_content.aligment_scale as f64
+                    })
+                    .prefix("Aligment scale"),
+                );
 
-                ui.add(egui::Slider::from_get_set(0.0..=0.1, |optional_value: Option<f64>| {
-                    if let Some(v) = optional_value {
-                        self.simulation_parameters_uniform_buffer_content.cohesion_scale = v as f32;
-                    }
-                    self.simulation_parameters_uniform_buffer_content.cohesion_scale as f64
-                }).prefix("Cohesion scale"));
-
-                ui.add(egui::Slider::from_get_set(0.0..=0.1, |optional_value: Option<f64>| {
-                    if let Some(v) = optional_value {
-                        self.simulation_parameters_uniform_buffer_content.aligment_scale = v as f32;
-                    }
-                    self.simulation_parameters_uniform_buffer_content.aligment_scale as f64
-                }).prefix("Aligment scale"));
-
-                ui.add(egui::Slider::from_get_set(0.0..=0.1, |optional_value: Option<f64>| {
-                    if let Some(v) = optional_value {
-                        self.simulation_parameters_uniform_buffer_content.separation_scale = v as f32;
-                    }
-                    self.simulation_parameters_uniform_buffer_content.separation_scale as f64
-                }).prefix("Separation scale"));
-
+                ui.add(
+                    egui::Slider::from_get_set(0.0..=0.1, |optional_value: Option<f64>| {
+                        if let Some(v) = optional_value {
+                            self.simulation_parameters_uniform_buffer_content.separation_scale = v as f32;
+                        }
+                        self.simulation_parameters_uniform_buffer_content.separation_scale as f64
+                    })
+                    .prefix("Separation scale"),
+                );
             });
 
             egui::CollapsingHeader::new("Wgpu Profiler").default_open(true).show(ui, |ui| {
                 if let Some(latest_profiler_results) = self.simulation_profiler.process_finished_frame() {
                     setup_ui_profiler(ui, &latest_profiler_results, 1);
-                }else {
+                } else {
                     ui.label("No profiler results yet");
                 }
             });
-            
         });
 
         Ok(())
-    
     }
 
     fn update(&mut self, _app_state: &mut AppState) -> Result<()> {
-
-        self.simulation_parameters_uniform_buffer.update_content(&_app_state.queue, self.simulation_parameters_uniform_buffer_content);
+        self.simulation_parameters_uniform_buffer
+            .update_content(&_app_state.queue, self.simulation_parameters_uniform_buffer_content);
 
         Ok(())
     }
@@ -258,7 +269,6 @@ impl oxyde::App for RustyBoids {
         _output_view: &wgpu::TextureView,
     ) -> Result<(), wgpu::SurfaceError> {
         wgpu_profiler!("Render", self.simulation_profiler, _encoder, &_app_state.device, {
-        
             wgpu_profiler!("Compute Boids", self.simulation_profiler, _encoder, &_app_state.device, {
                 let mut compute_pass = _encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("Compute Pass") });
 
@@ -269,7 +279,6 @@ impl oxyde::App for RustyBoids {
             });
 
             wgpu_profiler!("Render Boids", self.simulation_profiler, _encoder, &_app_state.device, {
-            
                 let mut screen_render_pass = _encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("Render Pass"),
                     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -286,7 +295,6 @@ impl oxyde::App for RustyBoids {
                 screen_render_pass.set_vertex_buffer(1, self.boid_buffers.get_target_buffer().slice(..));
                 screen_render_pass.draw(0..3, 0..self.boids_data.len() as _);
             });
-
         });
 
         self.simulation_profiler.resolve_queries(_encoder);
@@ -299,6 +307,4 @@ impl oxyde::App for RustyBoids {
 
         Ok(())
     }
-
-
 }
