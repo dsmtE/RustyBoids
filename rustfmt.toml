@@ -19,3 +19,7 @@ trailing_comma = "Vertical"
 use_field_init_shorthand = true
 match_arm_blocks = false
 match_block_trailing_comma = true
+
+ignore = [
+    "crates",
+]
