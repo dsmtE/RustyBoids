@@ -1,5 +1,5 @@
 [package]
-name = "rustyBoids"
+name = "rusty_boids"
 version = "0.0.1"
 authors = ["DE SMET Enguerrand"]
 edition = "2021"
@@ -26,5 +26,5 @@ bytemuck = { version = "1.13", features = [ "derive" ] }
 oxyde = { path = "crates/oxyde" }
 
 [[bin]]
-name = "rustyBoids"
+name = "rusty_boids"
 path = "src/main.rs"

@@ -1,6 +1,6 @@
 use oxyde::egui;
 
-pub fn setup_ui_profiler(ui: &mut egui::Ui, profiling_data: &Vec<wgpu_profiler::GpuTimerScopeResult>, levels_default_open: i32) {
+pub fn setup_ui_profiler(ui: &mut egui::Ui, profiling_data: &[wgpu_profiler::GpuTimerScopeResult], levels_default_open: i32) {
     for scope in profiling_data.iter() {
         let time = format!("{:.3}ms", (scope.time.end - scope.time.start) * 1000.0);
         if scope.nested_scopes.is_empty() {

@@ -99,7 +99,7 @@ impl oxyde::App for RustyBoids {
             label: Some("Compute pipeline"),
             layout: Some(&_app_state.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Compute Pipeline"),
-                bind_group_layouts: &[&simulation_parameters_bind_group_layout_with_desc.layout, &boid_buffers.layout()],
+                bind_group_layouts: &[&simulation_parameters_bind_group_layout_with_desc.layout, (boid_buffers.layout())],
                 push_constant_ranges: &[],
             })),
             module: &compute_shader,
@@ -170,7 +170,7 @@ impl oxyde::App for RustyBoids {
     fn handle_event(&mut self, _app_state: &mut AppState, _event: &winit::event::Event<()>) -> Result<()> { Ok(()) }
 
     fn render_gui(&mut self, _ctx: &egui::Context) -> Result<()> {
-        egui::SidePanel::right("right panel").resizable(true).show(&_ctx, |ui| {
+        egui::SidePanel::right("right panel").resizable(true).show(_ctx, |ui| {
             egui::CollapsingHeader::new("Simulation settings").default_open(true).show(ui, |ui| {
                 ui.add(
                     egui::Slider::from_get_set(0.0..=0.1, |optional_value: Option<f64>| {
@@ -274,7 +274,7 @@ impl oxyde::App for RustyBoids {
 
                 compute_pass.set_pipeline(&self.compute_pipeline);
                 compute_pass.set_bind_group(0, &self.simulation_parameters_bind_group, &[]);
-                compute_pass.set_bind_group(1, &self.boid_buffers.get_next_target_bind_group(), &[]);
+                compute_pass.set_bind_group(1, self.boid_buffers.get_next_target_bind_group(), &[]);
                 compute_pass.dispatch_workgroups((self.boids_data.len() / WORKGROUP_SIZE + 1) as _, 1, 1);
             });
 
@@ -288,7 +288,7 @@ impl oxyde::App for RustyBoids {
                     })],
                     depth_stencil_attachment: None,
                 });
-                oxyde::fit_viewport_to_gui_available_rect(&mut screen_render_pass, &_app_state);
+                oxyde::fit_viewport_to_gui_available_rect(&mut screen_render_pass, _app_state);
 
                 screen_render_pass.set_pipeline(&self.render_pipeline);
                 screen_render_pass.set_vertex_buffer(0, self.vertices_buffer.slice(..));
