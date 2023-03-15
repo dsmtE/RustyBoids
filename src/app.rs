@@ -35,11 +35,6 @@ pub struct RustyBoids {
 
 impl oxyde::App for RustyBoids {
     fn create(_app_state: &mut AppState) -> Self {
-        let (tx, rx) = std::sync::mpsc::channel::<wgpu::Error>();
-        _app_state.device.on_uncaptured_error(Box::new(move |e: wgpu::Error| {
-            tx.send(e).expect("sending error failed");
-        }));
-
         let initial_boids_count: usize = 2000;
 
         let mut rng = rand::rngs::StdRng::seed_from_u64(42);
@@ -148,11 +143,6 @@ impl oxyde::App for RustyBoids {
         });
 
         let simulation_profiler = GpuProfiler::new(16, _app_state.queue.get_timestamp_period(), _app_state.device.features());
-        _app_state.device.on_uncaptured_error(Box::new(|err| panic!("{}", err)));
-
-        if let Ok(err) = rx.try_recv() {
-            panic!("{}", err);
-        }
 
         Self {
             boids_data,
