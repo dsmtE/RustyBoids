@@ -175,31 +175,11 @@ impl oxyde::App for RustyBoids {
                 ui.add(
                     egui::Slider::from_get_set(0.0..=0.1, |optional_value: Option<f64>| {
                         if let Some(v) = optional_value {
-                            self.simulation_parameters_uniform_buffer_content.cohesion_distance = v as f32;
+                            self.simulation_parameters_uniform_buffer_content.view_radius = v as f32;
                         }
-                        self.simulation_parameters_uniform_buffer_content.cohesion_distance as f64
+                        self.simulation_parameters_uniform_buffer_content.view_radius as f64
                     })
-                    .prefix("Cohesion distance"),
-                );
-
-                ui.add(
-                    egui::Slider::from_get_set(0.0..=0.1, |optional_value: Option<f64>| {
-                        if let Some(v) = optional_value {
-                            self.simulation_parameters_uniform_buffer_content.aligment_distance = v as f32;
-                        }
-                        self.simulation_parameters_uniform_buffer_content.aligment_distance as f64
-                    })
-                    .prefix("Aligment distance"),
-                );
-
-                ui.add(
-                    egui::Slider::from_get_set(0.0..=0.1, |optional_value: Option<f64>| {
-                        if let Some(v) = optional_value {
-                            self.simulation_parameters_uniform_buffer_content.separation_distance = v as f32;
-                        }
-                        self.simulation_parameters_uniform_buffer_content.separation_distance as f64
-                    })
-                    .prefix("Separation distance"),
+                    .prefix("view radius"),
                 );
 
                 ui.add(

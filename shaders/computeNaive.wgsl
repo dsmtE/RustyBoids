@@ -5,9 +5,7 @@ struct BoidData {
 
 struct SimulationParameters {
     delta_t: f32,
-    cohesion_distance: f32,
-    aligment_distance: f32,
-    separation_distance: f32,
+    view_radius: f32,
     cohesion_scale: f32,
     aligment_scale: f32,
     separation_scale: f32,
@@ -47,22 +45,22 @@ fn cs_main(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
     let otherVelocity = boidsSrc.boids[i].velocity;
 
     let distance = distance(otherPosition, currentPosition);
-    // Separation
-    if (distance < simulationParameters.separation_distance) {
-      close = close + (currentPosition - otherPosition);
+
+    // Skip if too far away
+    if (distance > simulationParameters.view_radius) {
+      continue;
     }
+    
+    // Separation
+    close = close + (currentPosition - otherPosition);
 
     // Aligment
-    if (distance < simulationParameters.aligment_distance) {
-      avgVelocity = avgVelocity + otherVelocity;
-      avgVelocityCount = avgVelocityCount + 1u;
-    }
+    avgVelocity = avgVelocity + otherVelocity;
+    avgVelocityCount = avgVelocityCount + 1u;
 
     // Cohesion
-    if (distance < simulationParameters.cohesion_distance) {
-      avgPosition = avgPosition + otherPosition;
-      avgPositionCount = avgPositionCount + 1u;
-    }
+    avgPosition = avgPosition + otherPosition;
+    avgPositionCount = avgPositionCount + 1u;
   }
 
   if (avgPositionCount > 0u) {
