@@ -75,7 +75,7 @@ impl oxyde::App for RustyBoids {
         // Compute Pipeline
         let compute_shader = _app_state.device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Compute Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/compute.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/computeNaive.wgsl").into()),
         });
 
         let simulation_parameters_bind_group_layout_with_desc = BindGroupLayoutBuilder::new()
