@@ -213,13 +213,11 @@ impl oxyde::App for RustyBoids {
                 );
             });
 
-            egui::CollapsingHeader::new("Wgpu Profiler").default_open(true).show(ui, |ui| {
-                if let Some(latest_profiler_results) = self.simulation_profiler.process_finished_frame() {
-                    setup_ui_profiler(ui, &latest_profiler_results, 1);
-                } else {
-                    ui.label("No profiler results yet");
-                }
-            });
+            if let Some(latest_profiler_results) = self.simulation_profiler.process_finished_frame() {
+                setup_ui_profiler(ui, &latest_profiler_results, 1);
+            } else {
+                ui.label("No profiler results yet");
+            }
         });
 
         Ok(())
@@ -238,7 +236,7 @@ impl oxyde::App for RustyBoids {
         _encoder: &mut wgpu::CommandEncoder,
         _output_view: &wgpu::TextureView,
     ) -> Result<(), wgpu::SurfaceError> {
-        wgpu_profiler!("Render", self.simulation_profiler, _encoder, &_app_state.device, {
+        wgpu_profiler!("Wgpu Profiler", self.simulation_profiler, _encoder, &_app_state.device, {
             wgpu_profiler!("Compute Boids", self.simulation_profiler, _encoder, &_app_state.device, {
                 let mut compute_pass = _encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("Compute Pass") });
 
