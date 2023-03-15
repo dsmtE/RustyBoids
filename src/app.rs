@@ -3,8 +3,7 @@ use oxyde::{
     egui,
     wgpu,
     wgpu_utils::{
-        binding_builder::{BindGroupBuilder, BindGroupLayoutBuilder},
-        uniform_buffer::UniformBuffer,
+        uniform_buffer::UniformBufferWrapper,
         PingPongBuffer,
     },
     winit,
@@ -28,9 +27,7 @@ pub struct RustyBoids {
 
     simulation_profiler: GpuProfiler,
 
-    simulation_parameters_uniform_buffer_content: SimulationParametersUniformBufferContent,
-    simulation_parameters_uniform_buffer: UniformBuffer<SimulationParametersUniformBufferContent>,
-    simulation_parameters_bind_group: wgpu::BindGroup,
+    simulation_parameters_uniform_buffer: UniformBufferWrapper<SimulationParametersUniformBufferContent>,
 }
 
 impl oxyde::App for RustyBoids {
@@ -68,9 +65,10 @@ impl oxyde::App for RustyBoids {
             },
         );
 
-        let simulation_parameters_uniform_buffer_content = SimulationParametersUniformBufferContent::default();
-
-        let simulation_parameters_uniform_buffer = UniformBuffer::new_with_data(&_app_state.device, &simulation_parameters_uniform_buffer_content);
+        let simulation_parameters_uniform_buffer = UniformBufferWrapper::new(
+            &_app_state.device,
+            SimulationParametersUniformBufferContent::default()
+        );
 
         // Compute Pipeline
         let compute_shader = _app_state.device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -78,23 +76,11 @@ impl oxyde::App for RustyBoids {
             source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/computeNaive.wgsl").into()),
         });
 
-        let simulation_parameters_bind_group_layout_with_desc = BindGroupLayoutBuilder::new()
-            .add_binding_compute(wgpu::BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Uniform,
-                has_dynamic_offset: false,
-                min_binding_size: wgpu::BufferSize::new(std::mem::size_of::<SimulationParametersUniformBufferContent>() as _),
-            })
-            .create(&_app_state.device, Some("compute_bind_group_layout"));
-
-        let simulation_parameters_bind_group = BindGroupBuilder::new(&simulation_parameters_bind_group_layout_with_desc)
-            .resource(simulation_parameters_uniform_buffer.binding_resource())
-            .create(&_app_state.device, Some("simulation_parameters_bind_group"));
-
         let compute_pipeline = _app_state.device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: Some("Compute pipeline"),
             layout: Some(&_app_state.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Compute Pipeline"),
-                bind_group_layouts: &[&simulation_parameters_bind_group_layout_with_desc.layout, (boid_buffers.layout())],
+                bind_group_layouts: &[&simulation_parameters_uniform_buffer.layout(), (boid_buffers.layout())],
                 push_constant_ranges: &[],
             })),
             module: &compute_shader,
@@ -142,17 +128,15 @@ impl oxyde::App for RustyBoids {
             multiview: None,
         });
 
-        let simulation_profiler = GpuProfiler::new(16, _app_state.queue.get_timestamp_period(), _app_state.device.features());
+        let simulation_profiler = GpuProfiler::new(4, _app_state.queue.get_timestamp_period(), _app_state.device.features());
 
         Self {
             boids_data,
             render_pipeline,
             compute_pipeline,
             boid_buffers,
-            simulation_parameters_bind_group,
             simulation_profiler,
             vertices_buffer,
-            simulation_parameters_uniform_buffer_content,
             simulation_parameters_uniform_buffer,
         }
     }
@@ -165,9 +149,9 @@ impl oxyde::App for RustyBoids {
                 ui.add(
                     egui::Slider::from_get_set(0.0..=0.1, |optional_value: Option<f64>| {
                         if let Some(v) = optional_value {
-                            self.simulation_parameters_uniform_buffer_content.delta_t = v as f32;
+                            self.simulation_parameters_uniform_buffer.content().delta_t = v as f32;
                         }
-                        self.simulation_parameters_uniform_buffer_content.delta_t as f64
+                        self.simulation_parameters_uniform_buffer.content().delta_t as f64
                     })
                     .prefix("Delta t"),
                 );
@@ -175,9 +159,9 @@ impl oxyde::App for RustyBoids {
                 ui.add(
                     egui::Slider::from_get_set(0.0..=0.1, |optional_value: Option<f64>| {
                         if let Some(v) = optional_value {
-                            self.simulation_parameters_uniform_buffer_content.view_radius = v as f32;
+                            self.simulation_parameters_uniform_buffer.content().view_radius = v as f32;
                         }
-                        self.simulation_parameters_uniform_buffer_content.view_radius as f64
+                        self.simulation_parameters_uniform_buffer.content().view_radius as f64
                     })
                     .prefix("view radius"),
                 );
@@ -185,9 +169,9 @@ impl oxyde::App for RustyBoids {
                 ui.add(
                     egui::Slider::from_get_set(0.0..=0.1, |optional_value: Option<f64>| {
                         if let Some(v) = optional_value {
-                            self.simulation_parameters_uniform_buffer_content.cohesion_scale = v as f32;
+                            self.simulation_parameters_uniform_buffer.content().cohesion_scale = v as f32;
                         }
-                        self.simulation_parameters_uniform_buffer_content.cohesion_scale as f64
+                        self.simulation_parameters_uniform_buffer.content().cohesion_scale as f64
                     })
                     .prefix("Cohesion scale"),
                 );
@@ -195,9 +179,9 @@ impl oxyde::App for RustyBoids {
                 ui.add(
                     egui::Slider::from_get_set(0.0..=0.1, |optional_value: Option<f64>| {
                         if let Some(v) = optional_value {
-                            self.simulation_parameters_uniform_buffer_content.aligment_scale = v as f32;
+                            self.simulation_parameters_uniform_buffer.content().aligment_scale = v as f32;
                         }
-                        self.simulation_parameters_uniform_buffer_content.aligment_scale as f64
+                        self.simulation_parameters_uniform_buffer.content().aligment_scale as f64
                     })
                     .prefix("Aligment scale"),
                 );
@@ -205,9 +189,9 @@ impl oxyde::App for RustyBoids {
                 ui.add(
                     egui::Slider::from_get_set(0.0..=0.1, |optional_value: Option<f64>| {
                         if let Some(v) = optional_value {
-                            self.simulation_parameters_uniform_buffer_content.separation_scale = v as f32;
+                            self.simulation_parameters_uniform_buffer.content().separation_scale = v as f32;
                         }
-                        self.simulation_parameters_uniform_buffer_content.separation_scale as f64
+                        self.simulation_parameters_uniform_buffer.content().separation_scale as f64
                     })
                     .prefix("Separation scale"),
                 );
@@ -224,8 +208,7 @@ impl oxyde::App for RustyBoids {
     }
 
     fn update(&mut self, _app_state: &mut AppState) -> Result<()> {
-        self.simulation_parameters_uniform_buffer
-            .update_content(&_app_state.queue, self.simulation_parameters_uniform_buffer_content);
+        self.simulation_parameters_uniform_buffer.update_content(&_app_state.queue);
 
         Ok(())
     }
@@ -241,7 +224,7 @@ impl oxyde::App for RustyBoids {
                 let mut compute_pass = _encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("Compute Pass") });
 
                 compute_pass.set_pipeline(&self.compute_pipeline);
-                compute_pass.set_bind_group(0, &self.simulation_parameters_bind_group, &[]);
+                compute_pass.set_bind_group(0, &self.simulation_parameters_uniform_buffer.bind_group(), &[]);
                 compute_pass.set_bind_group(1, self.boid_buffers.get_next_target_bind_group(), &[]);
                 compute_pass.dispatch_workgroups((self.boids_data.len() / WORKGROUP_SIZE + 1) as _, 1, 1);
             });
