@@ -17,12 +17,18 @@ fn vs_main(
     let angle = -atan2(boid.velocity.x, boid.velocity.y);
     let c = cos(angle);
     let s = sin(angle);
-    let pos = vec2(
+
+    let scale = 0.3;
+    var pos = vec2<f32>(
         position.x * c - position.y * s,
         position.x * s + position.y * c,
-    )*0.3;
+    );
+    pos *= scale;
+    
+    // shift to displat boid in [0, 1] in range of the screen [-1, 1]
+    let centered_boid = boid.position * 2.0 - 1.0;
 
-    out.clip_position = vec4<f32>(pos.x + boid.position.x, pos.y + boid.position.y, 0.0, 1.0);
+    out.clip_position = vec4<f32>(pos.x + centered_boid.x, pos.y + centered_boid.y, 0.0, 1.0);
     return out;
 }
 

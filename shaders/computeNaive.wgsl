@@ -65,6 +65,8 @@ fn cs_main(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
 
   if (avgPositionCount > 0u) {
     avgPosition = avgPosition / f32(avgPositionCount);
+  }else {
+    avgPosition = currentPosition;
   }
 
   if (avgVelocityCount > 0u) {
@@ -93,9 +95,9 @@ fn cs_main(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
 
 fn wrap_arroud(v : vec2<f32>) -> vec2<f32> {
   var result : vec2<f32> = v;
-  if (v.x < -1.0) { result.x = 1.0; }
-  if (v.x > 1.0) { result.x = -1.0; }
-  if (v.y < -1.0) { result.y = 1.0; }
-  if (v.y > 1.0) { result.y = -1.0; }
+  if (v.x < 0.0) { result.x = 1.0; }
+  if (v.x > 1.0) { result.x = 0.0; }
+  if (v.y < 0.0) { result.y = 1.0; }
+  if (v.y > 1.0) { result.y = 0.0; }
   return result;
 }
