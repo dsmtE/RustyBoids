@@ -1,7 +1,7 @@
 struct BoidData {
     @location(0) position: vec2<f32>,
     @location(1) velocity: vec2<f32>,
-    @location(2) current_cell_id: vec2<f32>,
+    @location(2) current_cell_id: vec2<u32>,
 };
 
 struct SimulationParameters {
@@ -17,7 +17,7 @@ struct SimulationParameters {
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
-    @location(0) current_cell_id : f32,
+    @location(0) current_cell_id : u32,
 };
 
 @vertex
@@ -54,7 +54,7 @@ fn palette(t: f32, a: vec3<f32>, b: vec3<f32>, c: vec3<f32>, d: vec3<f32>) -> ve
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let grid_count_f32 = f32(simulationParameters.grid_count);
-    let cell_factor = in.current_cell_id / (grid_count_f32*grid_count_f32);
+    let cell_factor = f32(in.current_cell_id) / (grid_count_f32*grid_count_f32);
     let color: vec3<f32> = palette(cell_factor, vec3<f32>(0.2,0.2,0.2),vec3<f32>(0.8,0.8,0.8),vec3<f32>(1.0,1.0,1.0)*14.2857,vec3<f32>(0.0,0.33,0.67));
     return vec4<f32>(color.x, color.y, color.z, 1.0);
 }

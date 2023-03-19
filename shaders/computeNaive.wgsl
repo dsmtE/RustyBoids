@@ -1,7 +1,7 @@
 struct BoidData {
     position: vec2<f32>,
     velocity: vec2<f32>,
-    current_cell_id: vec2<f32>,
+    current_cell_id: vec2<u32>,
 };
 
 struct Boids {
@@ -21,10 +21,9 @@ struct SimulationParameters {
 @group(1) @binding(0) var<storage, read> boidsSrc : Boids;
 @group(1) @binding(1) var<storage, read_write> boidsDst : Boids;
 
-fn position_to_grid_cell_id(position: vec2<f32>, grid_count: u32) -> f32 {
-  let grid_count_f32 = f32(grid_count);
-  let position_id_f32: vec2<f32> = floor(position * grid_count_f32);
-  return grid_count_f32 * position_id_f32.y + position_id_f32.x;
+fn position_to_grid_cell_id(position: vec2<f32>, grid_count: u32) -> u32 {
+  let position_id_f32: vec2<f32> = floor(position * f32(grid_count));
+  return grid_count * u32(position_id_f32.y) + u32(position_id_f32.x);
 }
 
 @compute @workgroup_size(64)
