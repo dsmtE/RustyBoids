@@ -1,6 +1,7 @@
 struct BoidData {
     @location(0) position: vec2<f32>,
     @location(1) velocity: vec2<f32>,
+    @location(2) current_cell_id: vec2<f32>,
 };
 
 struct VertexOutput {
@@ -10,7 +11,7 @@ struct VertexOutput {
 @vertex
 fn vs_main(
     boid: BoidData,
-    @location(2) position: vec2<f32>,
+    @location(3) position: vec2<f32>,
 ) -> VertexOutput {
     var out: VertexOutput;
 

@@ -130,7 +130,7 @@ impl oxyde::App for RustyBoids {
                     wgpu::VertexBufferLayout {
                         array_stride: 2 * 4,
                         step_mode: wgpu::VertexStepMode::Vertex,
-                        attributes: &wgpu::vertex_attr_array![2 => Float32x2],
+                        attributes: &wgpu::vertex_attr_array![3 => Float32x2],
                     },
                     BoidData::vertex_buffer_layout(),
                 ],

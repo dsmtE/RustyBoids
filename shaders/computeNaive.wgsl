@@ -1,7 +1,12 @@
 struct BoidData {
     position: vec2<f32>,
     velocity: vec2<f32>,
+    current_cell_id: vec2<f32>,
 };
+
+struct Boids {
+  boids : array<BoidData>,
+}
 
 struct SimulationParameters {
     delta_t: f32,
@@ -9,15 +14,18 @@ struct SimulationParameters {
     cohesion_scale: f32,
     aligment_scale: f32,
     separation_scale: f32,
-}
-
-struct Boids {
-  boids : array<BoidData>,
+    grid_count: u32,
 }
 
 @group(0) @binding(0) var<uniform> simulationParameters : SimulationParameters;
 @group(1) @binding(0) var<storage, read> boidsSrc : Boids;
 @group(1) @binding(1) var<storage, read_write> boidsDst : Boids;
+
+fn position_to_grid_cell_id(position: vec2<f32>, grid_count: u32) -> f32 {
+  let grid_count_f32 = f32(grid_count);
+  let position_id_f32: vec2<f32> = floor(position * grid_count_f32);
+  return grid_count_f32 * position_id_f32.y + position_id_f32.x;
+}
 
 @compute @workgroup_size(64)
 fn cs_main(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
@@ -91,6 +99,7 @@ fn cs_main(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
   // Write back to storage buffer
   boidsDst.boids[index].position = newPosition;
   boidsDst.boids[index].velocity = newVelocity;
+  boidsDst.boids[index].current_cell_id.x = position_to_grid_cell_id(newPosition, simulationParameters.grid_count);
 }
 
 fn wrap_arroud(v : vec2<f32>) -> vec2<f32> {
