@@ -66,11 +66,13 @@ impl oxyde::App for RustyBoids {
         let init_parameters_uniform_buffer = UniformBufferWrapper::new(
             &_app_state.device,
             InitParametersUniformBufferContent::default(),
+            wgpu::ShaderStages::COMPUTE,
         );
 
         let simulation_parameters_uniform_buffer = UniformBufferWrapper::new(
             &_app_state.device,
-            SimulationParametersUniformBufferContent::default()
+            SimulationParametersUniformBufferContent::default(),
+            wgpu::ShaderStages::all(),
         );
 
         // Compute Pipeline
