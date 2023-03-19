@@ -119,7 +119,7 @@ impl oxyde::App for RustyBoids {
             label: Some("Render Pipeline"),
             layout: Some(&_app_state.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[],
+                bind_group_layouts: &[&simulation_parameters_uniform_buffer.layout()],
                 push_constant_ranges: &[],
             })),
 
@@ -290,6 +290,7 @@ impl oxyde::App for RustyBoids {
                 oxyde::fit_viewport_to_gui_available_rect(&mut screen_render_pass, _app_state);
 
                 screen_render_pass.set_pipeline(&self.render_pipeline);
+                screen_render_pass.set_bind_group(0, &self.simulation_parameters_uniform_buffer.bind_group(), &[]);
                 screen_render_pass.set_vertex_buffer(0, self.vertices_buffer.slice(..));
                 screen_render_pass.set_vertex_buffer(1, self.boid_buffers.get_target_buffer().slice(..));
                 screen_render_pass.draw(0..3, 0..self.boids_count as _);
