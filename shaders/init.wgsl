@@ -34,12 +34,3 @@ fn cs_main(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
   boidsDst.boids[index].position = vec2<f32>(hash1(alterated_index), hash1(alterated_index + 1u));
   boidsDst.boids[index].velocity = normalize(vec2<f32>(hash1(alterated_index + 2u), hash1(alterated_index + 3u)) * 2.0 - 1.0)* 0.01;
 }
-
-fn wrap_arroud(v : vec2<f32>) -> vec2<f32> {
-  var result : vec2<f32> = v;
-  if (v.x < -1.0) { result.x = 1.0; }
-  if (v.x > 1.0) { result.x = -1.0; }
-  if (v.y < -1.0) { result.y = 1.0; }
-  if (v.y > 1.0) { result.y = -1.0; }
-  return result;
-}
