@@ -256,6 +256,8 @@ impl oxyde::App for RustyBoids {
     ) -> Result<(), wgpu::SurfaceError> {
         wgpu_profiler!("Wgpu Profiler", self.simulation_profiler, _encoder, &_app_state.device, {
 
+            let dispatch_group_count: u32 = (self.boids_count / WORKGROUP_SIZE) as u32 + 1;
+            
             if self.need_init {
                 wgpu_profiler!("Init Boids", self.simulation_profiler, _encoder, &_app_state.device, {
                     let mut compute_pass = _encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("Compute Pass") });
@@ -264,7 +266,7 @@ impl oxyde::App for RustyBoids {
                     compute_pass.set_bind_group(0, &self.init_parameters_uniform_buffer.bind_group(), &[]);
                     compute_pass.set_bind_group(1, &self.simulation_parameters_uniform_buffer.bind_group(), &[]);
                     compute_pass.set_bind_group(2, self.boid_buffers.get_current_source_bind_group(), &[]);
-                    compute_pass.dispatch_workgroups((self.boids_count / WORKGROUP_SIZE + 1) as _, 1, 1);
+                    compute_pass.dispatch_workgroups(dispatch_group_count, 1, 1);
                 });
 
                 self.need_init = false;
@@ -275,7 +277,7 @@ impl oxyde::App for RustyBoids {
                 compute_pass.set_pipeline(&self.compute_pipeline);
                 compute_pass.set_bind_group(0, &self.simulation_parameters_uniform_buffer.bind_group(), &[]);
                 compute_pass.set_bind_group(1, self.boid_buffers.get_next_target_bind_group(), &[]);
-                compute_pass.dispatch_workgroups((self.boids_count / WORKGROUP_SIZE + 1) as _, 1, 1);
+                compute_pass.dispatch_workgroups(dispatch_group_count, 1, 1);
             });
 
             wgpu_profiler!("Render Boids", self.simulation_profiler, _encoder, &_app_state.device, {
