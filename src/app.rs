@@ -102,7 +102,7 @@ impl oxyde::App for RustyBoids {
             label: Some("Init pipeline"),
             layout: Some(&_app_state.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Init Pipeline"),
-                bind_group_layouts: &[&init_parameters_uniform_buffer.layout(), boid_buffers.layout()],
+                bind_group_layouts: &[&init_parameters_uniform_buffer.layout(), &simulation_parameters_uniform_buffer.layout(), boid_buffers.layout()],
                 push_constant_ranges: &[],
             })),
             module: &init_shader,
@@ -262,7 +262,8 @@ impl oxyde::App for RustyBoids {
 
                     compute_pass.set_pipeline(&self.init_pipeline);
                     compute_pass.set_bind_group(0, &self.init_parameters_uniform_buffer.bind_group(), &[]);
-                    compute_pass.set_bind_group(1, self.boid_buffers.get_current_source_bind_group(), &[]);
+                    compute_pass.set_bind_group(1, &self.simulation_parameters_uniform_buffer.bind_group(), &[]);
+                    compute_pass.set_bind_group(2, self.boid_buffers.get_current_source_bind_group(), &[]);
                     compute_pass.dispatch_workgroups((self.boids_count / WORKGROUP_SIZE + 1) as _, 1, 1);
                 });
 
