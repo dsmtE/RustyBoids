@@ -1,6 +1,7 @@
 struct BoidData {
     position: vec2<f32>,
     velocity: vec2<f32>,
+    current_cell_id: vec2<u32>,
 };
 
 struct Boids {
