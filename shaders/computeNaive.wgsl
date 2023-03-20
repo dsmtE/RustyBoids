@@ -87,7 +87,9 @@ fn cs_main(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
       avgVelocity * simulationParameters.aligment_scale;
 
   // Clamp velocity for a more pleasing simulation
-  newVelocity = normalize(newVelocity) * clamp(length(newVelocity), 0.0, 0.1);
+  if (length(newVelocity) > 0.1) {
+    newVelocity = normalize(newVelocity) * 0.1;
+  }
 
   // Update position
   var newPosition : vec2<f32> = currentPosition + newVelocity * simulationParameters.delta_t;
