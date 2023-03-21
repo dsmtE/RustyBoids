@@ -170,58 +170,8 @@ impl oxyde::App for RustyBoids {
 
     fn render_gui(&mut self, _ctx: &egui::Context) -> Result<()> {
         egui::SidePanel::right("right panel").resizable(true).show(_ctx, |ui| {
-            egui::CollapsingHeader::new("Simulation settings").default_open(true).show(ui, |ui| {
-                ui.add(
-                    egui::Slider::from_get_set(0.0..=0.1, |optional_value: Option<f64>| {
-                        if let Some(v) = optional_value {
-                            self.simulation_parameters_uniform_buffer.content().delta_t = v as f32;
-                        }
-                        self.simulation_parameters_uniform_buffer.content().delta_t as f64
-                    })
-                    .prefix("Delta t"),
-                );
-
-                ui.add(
-                    egui::Slider::from_get_set(0.0..=0.1, |optional_value: Option<f64>| {
-                        if let Some(v) = optional_value {
-                            self.simulation_parameters_uniform_buffer.content().view_radius = v as f32;
-                        }
-                        self.simulation_parameters_uniform_buffer.content().view_radius as f64
-                    })
-                    .prefix("view radius"),
-                );
-
-                ui.add(
-                    egui::Slider::from_get_set(0.0..=0.1, |optional_value: Option<f64>| {
-                        if let Some(v) = optional_value {
-                            self.simulation_parameters_uniform_buffer.content().cohesion_scale = v as f32;
-                        }
-                        self.simulation_parameters_uniform_buffer.content().cohesion_scale as f64
-                    })
-                    .prefix("Cohesion scale"),
-                );
-
-                ui.add(
-                    egui::Slider::from_get_set(0.0..=0.1, |optional_value: Option<f64>| {
-                        if let Some(v) = optional_value {
-                            self.simulation_parameters_uniform_buffer.content().aligment_scale = v as f32;
-                        }
-                        self.simulation_parameters_uniform_buffer.content().aligment_scale as f64
-                    })
-                    .prefix("Aligment scale"),
-                );
-
-                ui.add(
-                    egui::Slider::from_get_set(0.0..=0.1, |optional_value: Option<f64>| {
-                        if let Some(v) = optional_value {
-                            self.simulation_parameters_uniform_buffer.content().separation_scale = v as f32;
-                        }
-                        self.simulation_parameters_uniform_buffer.content().separation_scale as f64
-                    })
-                    .prefix("Separation scale"),
-                );
-            });
-
+            
+            self.simulation_parameters_uniform_buffer.content().display_ui(ui);
 
             egui::CollapsingHeader::new("Init settings").default_open(true).show(ui, |ui| {
                 ui.add(egui::DragValue::new(&mut self.init_parameters_uniform_buffer.content().seed).speed(1).prefix("Seed: "));
