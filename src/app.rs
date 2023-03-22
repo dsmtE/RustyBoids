@@ -5,13 +5,14 @@ use oxyde::{
     wgpu_utils::{
         uniform_buffer::UniformBufferWrapper,
         PingPongBuffer,
+        SingleBufferWrapper,
     },
     winit,
     AppState,
 };
 use wgpu_profiler::{wgpu_profiler, GpuProfiler};
 
-use crate::{boids::BoidData, simulation::SimulationParametersUniformBufferContent, utils::setup_ui_profiler};
+use crate::{boids::{BoidData, BoidSortingId}, simulation::SimulationParametersUniformBufferContent, utils::setup_ui_profiler};
 
 
 #[repr(C)]
@@ -30,6 +31,7 @@ pub struct RustyBoids {
     vertices_buffer: wgpu::Buffer,
     boid_buffers: PingPongBuffer,
 
+    boids_sorting_id_buffer_wrapper: SingleBufferWrapper,
     simulation_profiler: GpuProfiler,
 
     init_parameters_uniform_buffer: UniformBufferWrapper<InitParametersUniformBufferContent>,
@@ -50,6 +52,18 @@ impl oxyde::App for RustyBoids {
                 usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             },
+        );
+        
+        let sorting_ids: Vec<BoidSortingId> = (0..initial_boids_count).map(|i| i as BoidSortingId).collect();
+
+        let boids_sorting_id_buffer_wrapper = SingleBufferWrapper::new_from_data(
+            &_app_state.device,
+            &sorting_ids,
+            wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            wgpu::ShaderStages::COMPUTE,
+            wgpu::BufferBindingType::Storage { read_only: false },
+            false,
+            Some("Boid Sorting Id Buffer"),
         );
 
         // buffer for the three 2d triangle vertices of each boid
@@ -163,6 +177,7 @@ impl oxyde::App for RustyBoids {
             vertices_buffer,
             init_parameters_uniform_buffer,
             simulation_parameters_uniform_buffer,
+            boids_sorting_id_buffer_wrapper,
         }
     }
 

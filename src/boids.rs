@@ -1,5 +1,7 @@
 use oxyde::wgpu;
 
+pub type BoidSortingId = u32;
+
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct BoidData {
