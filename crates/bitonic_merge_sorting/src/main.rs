@@ -1,5 +1,5 @@
 
-// This is a Rust implementation of the bitonic merge sort algorithm.
+// This is a CPU Rust implementation of the bitonic merge sort algorithm.
 
 // Inspired from implementation well described in this article https://poniesandlight.co.uk/reflect/bitonic_merge_sort/
 use clap::Parser;
@@ -15,7 +15,7 @@ struct Arguments {
 	max_workgroup_size: usize,
 }
 
-// Arguyment validation
+// Argument validation
 impl Arguments {
 	fn parse_and_validate() -> Self {
 		let args = Self::parse();
