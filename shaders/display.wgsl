@@ -17,7 +17,7 @@ struct SimulationParameters {
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
-    @location(0) current_cell_id : u32,
+    @location(1) color: vec3<f32>,
 };
 
 @vertex
@@ -42,7 +42,8 @@ fn vs_main(
     let centered_boid = boid.position * 2.0 - 1.0;
 
     out.clip_position = vec4<f32>(pos.x + centered_boid.x, pos.y + centered_boid.y, 0.0, 1.0);
-    out.current_cell_id = boid.current_cell_id.x;
+    let color_factor = cell_factor(boid.current_cell_id.x, simulationParameters.grid_count);
+    out.color = palette(color_factor, vec3<f32>(0.2,0.2,0.2),vec3<f32>(0.8,0.8,0.8),vec3<f32>(1.0,1.0,1.0)*14.2857,vec3<f32>(0.0,0.33,0.67));
     return out;
 }
 
@@ -51,12 +52,12 @@ fn palette(t: f32, a: vec3<f32>, b: vec3<f32>, c: vec3<f32>, d: vec3<f32>) -> ve
     return a + b * cos(6.28318 * (c * t + d));
 }
 
+fn cell_factor(cell_id: u32, grid_count: u32) -> f32 {
+    let grid_count_f32 = f32(grid_count);
+    return f32(cell_id) / (grid_count_f32*grid_count_f32);
+}
+
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let grid_count_f32 = f32(simulationParameters.grid_count);
-    let cell_factor = f32(in.current_cell_id) / (grid_count_f32*grid_count_f32);
-    let color: vec3<f32> = palette(cell_factor, vec3<f32>(0.2,0.2,0.2),vec3<f32>(0.8,0.8,0.8),vec3<f32>(1.0,1.0,1.0)*14.2857,vec3<f32>(0.0,0.33,0.67));
-    return vec4<f32>(color.x, color.y, color.z, 1.0);
+    return vec4<f32>(in.color.x, in.color.y, in.color.z, 1.0);
 }
- 
- 
