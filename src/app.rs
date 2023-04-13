@@ -21,10 +21,10 @@ struct InitParametersUniformBufferContent {
     pub seed: u32,
 }
 
-const WORKGROUP_SIZE: usize = 64;
+const WORKGROUP_SIZE: u32 = 64;
 
 pub struct RustyBoids {
-    boids_count: usize,
+    boids_count: u32,
     render_pipeline: wgpu::RenderPipeline,
     compute_pipeline: wgpu::ComputePipeline,
     init_pipeline: wgpu::ComputePipeline,
@@ -42,13 +42,13 @@ pub struct RustyBoids {
 
 impl oxyde::App for RustyBoids {
     fn create(_app_state: &mut AppState) -> Self {
-        let initial_boids_count: usize = 4096;
+        let initial_boids_count: u32 = 512;
 
         let boid_buffers = PingPongBuffer::from_buffer_descriptor(
             &_app_state.device,
             &wgpu::BufferDescriptor {
                 label: Some("Boid Buffers"),
-                size: (initial_boids_count * std::mem::size_of::<BoidData>()) as u64,
+                size: initial_boids_count as u64 * std::mem::size_of::<BoidData>() as u64,
                 usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             },
@@ -224,7 +224,7 @@ impl oxyde::App for RustyBoids {
     ) -> Result<(), wgpu::SurfaceError> {
         wgpu_profiler!("Wgpu Profiler", self.simulation_profiler, _encoder, &_app_state.device, {
 
-            let dispatch_group_count: u32 = (self.boids_count / WORKGROUP_SIZE) as u32 + 1;
+            let dispatch_group_count: u32 = std::cmp::max(1, self.boids_count / WORKGROUP_SIZE);
             
             if self.need_init {
                 wgpu_profiler!("Init Boids", self.simulation_profiler, _encoder, &_app_state.device, {
@@ -265,7 +265,7 @@ impl oxyde::App for RustyBoids {
                 screen_render_pass.set_bind_group(0, &self.simulation_parameters_uniform_buffer.bind_group(), &[]);
                 screen_render_pass.set_vertex_buffer(0, self.vertices_buffer.slice(..));
                 screen_render_pass.set_vertex_buffer(1, self.boid_buffers.get_current_target_buffer().slice(..));
-                screen_render_pass.draw(0..3, 0..self.boids_count as _);
+                screen_render_pass.draw(0..3, 0..self.boids_count);
             });
         });
 
