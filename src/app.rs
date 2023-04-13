@@ -145,7 +145,7 @@ impl oxyde::App for RustyBoids {
                 entry_point: "vs_main",
                 buffers: &[
                     wgpu::VertexBufferLayout {
-                        array_stride: 2 * 4,
+                        array_stride: std::mem::size_of::<nalgebra_glm::Vec2>() as _,
                         step_mode: wgpu::VertexStepMode::Vertex,
                         attributes: &wgpu::vertex_attr_array![3 => Float32x2],
                     },
