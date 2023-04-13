@@ -12,7 +12,7 @@ use oxyde::{
 };
 use wgpu_profiler::{wgpu_profiler, GpuProfiler};
 
-use crate::{boids::{BoidData, BoidSortingId}, simulation::SimulationParametersUniformBufferContent, utils::setup_ui_profiler};
+use crate::{boids::{BoidData, BoidSortingId}, simulation::SimulationParametersUniformBufferContent, utils::setup_ui_profiler, sorting::SortingBoids};
 
 
 #[repr(C)]
@@ -30,6 +30,7 @@ pub struct RustyBoids {
     init_pipeline: wgpu::ComputePipeline,
     vertices_buffer: wgpu::Buffer,
     boid_buffers: PingPongBuffer,
+    sorting_boids_module: SortingBoids,
 
     boids_sorting_id_buffer_wrapper: SingleBufferWrapper,
     simulation_profiler: GpuProfiler,
@@ -42,7 +43,7 @@ pub struct RustyBoids {
 
 impl oxyde::App for RustyBoids {
     fn create(_app_state: &mut AppState) -> Self {
-        let initial_boids_count: u32 = 512;
+        let initial_boids_count: u32 = 128;
 
         let boid_buffers = PingPongBuffer::from_buffer_descriptor(
             &_app_state.device,
@@ -169,6 +170,13 @@ impl oxyde::App for RustyBoids {
 
         let simulation_profiler = GpuProfiler::new(4, _app_state.queue.get_timestamp_period(), _app_state.device.features());
 
+        let sorting_compute_shader_source = wgpu::ShaderSource::Wgsl(include_str!("../shaders/bitonicSort.wgsl").into());
+        let sorting_boids_module = SortingBoids::new(
+            &_app_state.device,
+            sorting_compute_shader_source,
+            boid_buffers.get_ping_pong_bind_group_layout(),
+        );
+
         Self {
             boids_count: initial_boids_count,
             need_init: true,
@@ -181,6 +189,7 @@ impl oxyde::App for RustyBoids {
             init_parameters_uniform_buffer,
             simulation_parameters_uniform_buffer,
             boids_sorting_id_buffer_wrapper,
+            sorting_boids_module,
         }
     }
 
@@ -224,7 +233,7 @@ impl oxyde::App for RustyBoids {
     ) -> Result<(), wgpu::SurfaceError> {
         wgpu_profiler!("Wgpu Profiler", self.simulation_profiler, _encoder, &_app_state.device, {
 
-            let dispatch_group_count: u32 = std::cmp::max(1, self.boids_count / WORKGROUP_SIZE);
+            let dispatch_group_count = std::cmp::max(1, self.boids_count / WORKGROUP_SIZE);
             
             if self.need_init {
                 wgpu_profiler!("Init Boids", self.simulation_profiler, _encoder, &_app_state.device, {
@@ -248,6 +257,17 @@ impl oxyde::App for RustyBoids {
                 compute_pass.set_bind_group(1, self.boid_buffers.get_current_ping_pong_bind_group(), &[]);
                 compute_pass.dispatch_workgroups(dispatch_group_count, 1, 1);
             });
+
+            // sorting_boids_module
+            self.sorting_boids_module.sort_boids(
+                &_app_state.device,
+                &mut _app_state.queue,
+                _encoder,
+                &self.boid_buffers.get_current_ping_pong_bind_group(),
+                WORKGROUP_SIZE,
+                self.boids_count,
+                &mut self.simulation_profiler,
+            );
 
             wgpu_profiler!("Render Boids", self.simulation_profiler, _encoder, &_app_state.device, {
                 let mut screen_render_pass = _encoder.begin_render_pass(&wgpu::RenderPassDescriptor {

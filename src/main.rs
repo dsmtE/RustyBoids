@@ -2,6 +2,7 @@ mod app;
 mod boids;
 mod simulation;
 mod utils;
+mod sorting;
 
 use fern::colors::ColoredLevelConfig;
 fn main() {

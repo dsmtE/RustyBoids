@@ -24,6 +24,7 @@ struct VertexOutput {
 fn vs_main(
     boid: BoidData,
     @location(3) position: vec2<f32>,
+    @builtin(instance_index) instance_index: u32,
 ) -> VertexOutput {
     var out: VertexOutput;
 
@@ -42,8 +43,12 @@ fn vs_main(
     let centered_boid = boid.position * 2.0 - 1.0;
 
     out.clip_position = vec4<f32>(pos.x + centered_boid.x, pos.y + centered_boid.y, 0.0, 1.0);
-    let color_factor = cell_factor(boid.current_cell_id.x, simulationParameters.grid_count);
-    out.color = palette(color_factor, vec3<f32>(0.2,0.2,0.2),vec3<f32>(0.8,0.8,0.8),vec3<f32>(1.0,1.0,1.0)*14.2857,vec3<f32>(0.0,0.33,0.67));
+    // let color_factor = cell_factor(boid.current_cell_id.x, simulationParameters.grid_count);
+    // out.color = palette(color_factor, vec3<f32>(0.2,0.2,0.2),vec3<f32>(0.8,0.8,0.8),vec3<f32>(1.0,1.0,1.0)*14.2857,vec3<f32>(0.0,0.33,0.67));
+
+    let color_factor = f32(instance_index)/128.0;
+    out.color = palette(color_factor, vec3<f32>(0.2,0.2,0.2),vec3<f32>(0.8,0.8,0.8),vec3<f32>(1.0,1.0,1.0),vec3<f32>(0.0,0.33,0.67));
+
     return out;
 }
 
