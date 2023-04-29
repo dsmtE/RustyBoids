@@ -189,10 +189,10 @@ impl oxyde::App for RustyBoids {
     fn render_gui(&mut self, _ctx: &egui::Context) -> Result<()> {
         egui::SidePanel::right("right panel").resizable(true).show(_ctx, |ui| {
             
-            self.simulation_parameters_uniform_buffer.content().display_ui(ui);
+            self.simulation_parameters_uniform_buffer.content_mut().display_ui(ui);
 
             egui::CollapsingHeader::new("Init settings").default_open(true).show(ui, |ui| {
-                ui.add(egui::DragValue::new(&mut self.init_parameters_uniform_buffer.content().seed).speed(1).prefix("Seed: "));
+                ui.add(egui::DragValue::new(&mut self.init_parameters_uniform_buffer.content_mut().seed).speed(1).prefix("Seed: "));
                 if ui.button("Init boids").clicked() {
                     self.need_init = true;
                 }
@@ -219,16 +219,19 @@ impl oxyde::App for RustyBoids {
     fn render(
         &mut self,
         _app_state: &mut AppState,
-        _encoder: &mut wgpu::CommandEncoder,
         _output_view: &wgpu::TextureView,
     ) -> Result<(), wgpu::SurfaceError> {
-        wgpu_profiler!("Wgpu Profiler", self.simulation_profiler, _encoder, &_app_state.device, {
 
-            let dispatch_group_count: u32 = std::cmp::max(1, self.boids_count / WORKGROUP_SIZE);
+        let mut encoder: wgpu::CommandEncoder = _app_state.device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Boids Encoder") });
+
+        wgpu_profiler!("Wgpu Profiler", self.simulation_profiler, &mut encoder, &_app_state.device, {
+
+            let dispatch_group_count = std::cmp::max(1, self.boids_count / WORKGROUP_SIZE);
             
             if self.need_init {
-                wgpu_profiler!("Init Boids", self.simulation_profiler, _encoder, &_app_state.device, {
-                    let mut compute_pass = _encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("Compute Pass") });
+                wgpu_profiler!("Init Boids", self.simulation_profiler, &mut encoder, &_app_state.device, {
+                    let compute_pass = &mut encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("Compute Pass") });
 
                     compute_pass.set_pipeline(&self.init_pipeline);
                     compute_pass.set_bind_group(0, &self.init_parameters_uniform_buffer.bind_group(), &[]);
@@ -239,8 +242,8 @@ impl oxyde::App for RustyBoids {
 
                 self.need_init = false;
             }
-            wgpu_profiler!("Compute Boids", self.simulation_profiler, _encoder, &_app_state.device, {
-                let mut compute_pass = _encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("Compute Pass") });
+            wgpu_profiler!("Compute Boids", self.simulation_profiler, &mut encoder, &_app_state.device, {
+                let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("Compute Pass") });
                 
                 self.boid_buffers.swap_state(); // explicit swap ping pong buffers
                 compute_pass.set_pipeline(&self.compute_pipeline);
@@ -249,8 +252,8 @@ impl oxyde::App for RustyBoids {
                 compute_pass.dispatch_workgroups(dispatch_group_count, 1, 1);
             });
 
-            wgpu_profiler!("Render Boids", self.simulation_profiler, _encoder, &_app_state.device, {
-                let mut screen_render_pass = _encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            wgpu_profiler!("Render Boids", self.simulation_profiler, &mut encoder, &_app_state.device, {
+                let mut screen_render_pass = &mut encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("Render Pass"),
                     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                         view: _output_view,
@@ -269,7 +272,9 @@ impl oxyde::App for RustyBoids {
             });
         });
 
-        self.simulation_profiler.resolve_queries(_encoder);
+        self.simulation_profiler.resolve_queries(&mut encoder);
+
+        _app_state.queue.submit(Some(encoder.finish()));
 
         Ok(())
     }
