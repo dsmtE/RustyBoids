@@ -136,7 +136,7 @@ impl oxyde::App for RustyBoids {
             label: Some("Render Pipeline"),
             layout: Some(&_app_state.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&simulation_parameters_uniform_buffer.layout()],
+                bind_group_layouts: &[&simulation_parameters_uniform_buffer.layout(), boid_buffers.get_buffer_bind_group_layout()],
                 push_constant_ranges: &[],
             })),
 
@@ -147,9 +147,13 @@ impl oxyde::App for RustyBoids {
                     wgpu::VertexBufferLayout {
                         array_stride: std::mem::size_of::<nalgebra_glm::Vec2>() as _,
                         step_mode: wgpu::VertexStepMode::Vertex,
-                        attributes: &wgpu::vertex_attr_array![3 => Float32x2],
+                        attributes: &wgpu::vertex_attr_array![0 => Float32x2],
                     },
-                    BoidData::vertex_buffer_layout(),
+                    wgpu::VertexBufferLayout {
+                        array_stride: std::mem::size_of::<BoidSortingId>() as _,
+                        step_mode: wgpu::VertexStepMode::Instance,
+                        attributes: &wgpu::vertex_attr_array![1 => Uint32],
+                    },
                 ],
             },
             fragment: Some(wgpu::FragmentState {
@@ -265,9 +269,10 @@ impl oxyde::App for RustyBoids {
                 oxyde::fit_viewport_to_gui_available_rect(&mut screen_render_pass, _app_state);
 
                 screen_render_pass.set_pipeline(&self.render_pipeline);
-                screen_render_pass.set_bind_group(0, &self.simulation_parameters_uniform_buffer.bind_group(), &[]);
                 screen_render_pass.set_vertex_buffer(0, self.vertices_buffer.slice(..));
-                screen_render_pass.set_vertex_buffer(1, self.boid_buffers.get_current_target_buffer().slice(..));
+                screen_render_pass.set_vertex_buffer(1, self.boids_sorting_id_buffer_wrapper.buffer().slice(..));
+                screen_render_pass.set_bind_group(0, &self.simulation_parameters_uniform_buffer.bind_group(), &[]);
+                screen_render_pass.set_bind_group(1, self.boid_buffers.get_current_target_bind_group(), &[]);
                 screen_render_pass.draw(0..3, 0..self.boids_count);
             });
         });

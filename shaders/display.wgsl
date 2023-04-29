@@ -1,7 +1,7 @@
 struct BoidData {
-    @location(0) position: vec2<f32>,
-    @location(1) velocity: vec2<f32>,
-    @location(2) current_cell_id: vec2<u32>,
+    position: vec2<f32>,
+    velocity: vec2<f32>,
+    current_cell_id: vec2<u32>,
 };
 
 struct SimulationParameters {
@@ -14,6 +14,7 @@ struct SimulationParameters {
 }
 
 @group(0) @binding(0) var<uniform> simulationParameters : SimulationParameters;
+@group(1) @binding(0) var<storage, read> boids : array<BoidData>;
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
@@ -22,10 +23,12 @@ struct VertexOutput {
 
 @vertex
 fn vs_main(
-    boid: BoidData,
-    @location(3) position: vec2<f32>,
+    @location(0) position: vec2<f32>,
+    @location(1) boid_sorting_id: u32,
 ) -> VertexOutput {
     var out: VertexOutput;
+
+    var boid: BoidData = boids[boid_sorting_id];
 
     let angle = -atan2(boid.velocity.x, boid.velocity.y);
     let c = cos(angle);
