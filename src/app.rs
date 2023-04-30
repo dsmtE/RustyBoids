@@ -12,8 +12,12 @@ use oxyde::{
 };
 use wgpu_profiler::{wgpu_profiler, GpuProfiler};
 
-use crate::{boids::{BoidData, BoidSortingId}, simulation::SimulationParametersUniformBufferContent, utils::setup_ui_profiler};
+use crate::{simulation::SimulationParametersUniformBufferContent, utils::setup_ui_profiler};
 
+pub type BoidSortingId = u32;
+pub type BoidsPosition = nalgebra_glm::Vec2;
+pub type BoidsVelocity = nalgebra_glm::Vec2;
+pub type BoidsCellId = nalgebra_glm::UVec2;
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, Default)]
@@ -28,8 +32,12 @@ pub struct RustyBoids {
     render_pipeline: wgpu::RenderPipeline,
     compute_pipeline: wgpu::ComputePipeline,
     init_pipeline: wgpu::ComputePipeline,
+
     vertices_buffer: wgpu::Buffer,
-    boid_buffers: PingPongBuffer,
+
+    boid_position_buffer: PingPongBuffer,
+    boid_velocity_buffer: PingPongBuffer,
+    boid_cell_id_buffer: PingPongBuffer,
 
     boids_sorting_id_buffer_wrapper: SingleBufferWrapper,
     simulation_profiler: GpuProfiler,
@@ -44,19 +52,42 @@ impl oxyde::App for RustyBoids {
     fn create(_app_state: &mut AppState) -> Self {
         let initial_boids_count: u32 = 512;
 
-        let boid_buffers = PingPongBuffer::from_buffer_descriptor(
+        let boid_position_buffer = PingPongBuffer::from_buffer_descriptor(
             &_app_state.device,
             &wgpu::BufferDescriptor {
-                label: Some("Boid Buffers"),
-                size: initial_boids_count as u64 * std::mem::size_of::<BoidData>() as u64,
+                label: Some("Boid Position Buffer"),
+                size: initial_boids_count as u64 * std::mem::size_of::<BoidsPosition>() as u64,
                 usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             },
             wgpu::ShaderStages::VERTEX,
             wgpu::ShaderStages::COMPUTE,
-
         );
-        
+
+        let boid_velocity_buffer = PingPongBuffer::from_buffer_descriptor(
+            &_app_state.device,
+            &wgpu::BufferDescriptor {
+                label: Some("Boid Velocity Buffer"),
+                size: initial_boids_count as u64 * std::mem::size_of::<BoidsVelocity>() as u64,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            },
+            wgpu::ShaderStages::VERTEX,
+            wgpu::ShaderStages::COMPUTE,
+        );
+
+        let boid_cell_id_buffer = PingPongBuffer::from_buffer_descriptor(
+            &_app_state.device,
+            &wgpu::BufferDescriptor {
+                label: Some("Boid Cell Id Buffer"),
+                size: initial_boids_count as u64 * std::mem::size_of::<BoidsCellId>() as u64,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            },
+            wgpu::ShaderStages::VERTEX,
+            wgpu::ShaderStages::COMPUTE,
+        );
+
         let sorting_ids: Vec<BoidSortingId> = (0..initial_boids_count).map(|i| i as BoidSortingId).collect();
 
         let boids_sorting_id_buffer_wrapper = SingleBufferWrapper::new_from_data(
@@ -102,7 +133,12 @@ impl oxyde::App for RustyBoids {
             label: Some("Compute pipeline"),
             layout: Some(&_app_state.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Compute Pipeline"),
-                bind_group_layouts: &[&simulation_parameters_uniform_buffer.layout(), boid_buffers.get_ping_pong_bind_group_layout()],
+                bind_group_layouts: &[
+                    &simulation_parameters_uniform_buffer.layout(),
+                    boid_position_buffer.get_ping_pong_bind_group_layout(),
+                    boid_velocity_buffer.get_ping_pong_bind_group_layout(),
+                    boid_cell_id_buffer.get_ping_pong_bind_group_layout(),
+                    ],
                 push_constant_ranges: &[],
             })),
             module: &compute_shader,
@@ -119,7 +155,13 @@ impl oxyde::App for RustyBoids {
             label: Some("Init pipeline"),
             layout: Some(&_app_state.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Init Pipeline"),
-                bind_group_layouts: &[&init_parameters_uniform_buffer.layout(), &simulation_parameters_uniform_buffer.layout(), boid_buffers.get_ping_pong_bind_group_layout()],
+                bind_group_layouts: &[
+                    &init_parameters_uniform_buffer.layout(),
+                    &simulation_parameters_uniform_buffer.layout(),
+                    boid_position_buffer.get_ping_pong_bind_group_layout(),
+                    boid_velocity_buffer.get_ping_pong_bind_group_layout(),
+                    boid_cell_id_buffer.get_ping_pong_bind_group_layout()
+                    ],
                 push_constant_ranges: &[],
             })),
             module: &init_shader,
@@ -136,7 +178,12 @@ impl oxyde::App for RustyBoids {
             label: Some("Render Pipeline"),
             layout: Some(&_app_state.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&simulation_parameters_uniform_buffer.layout(), boid_buffers.get_buffer_bind_group_layout()],
+                bind_group_layouts: &[
+                    &simulation_parameters_uniform_buffer.layout(),
+                    boid_position_buffer.get_buffer_bind_group_layout(),
+                    boid_velocity_buffer.get_buffer_bind_group_layout(),
+                    boid_cell_id_buffer.get_buffer_bind_group_layout()
+                    ],
                 push_constant_ranges: &[],
             })),
 
@@ -179,7 +226,9 @@ impl oxyde::App for RustyBoids {
             init_pipeline,
             render_pipeline,
             compute_pipeline,
-            boid_buffers,
+            boid_position_buffer,
+            boid_velocity_buffer,
+            boid_cell_id_buffer,
             simulation_profiler,
             vertices_buffer,
             init_parameters_uniform_buffer,
@@ -240,19 +289,27 @@ impl oxyde::App for RustyBoids {
                     compute_pass.set_pipeline(&self.init_pipeline);
                     compute_pass.set_bind_group(0, &self.init_parameters_uniform_buffer.bind_group(), &[]);
                     compute_pass.set_bind_group(1, &self.simulation_parameters_uniform_buffer.bind_group(), &[]);
-                    compute_pass.set_bind_group(2, self.boid_buffers.get_current_ping_pong_bind_group(), &[]);
+                    compute_pass.set_bind_group(2, self.boid_position_buffer.get_current_ping_pong_bind_group(), &[]);
+                    compute_pass.set_bind_group(3, self.boid_velocity_buffer.get_current_ping_pong_bind_group(), &[]);
+                    compute_pass.set_bind_group(4, self.boid_cell_id_buffer.get_current_ping_pong_bind_group(), &[]);
                     compute_pass.dispatch_workgroups(dispatch_group_count, 1, 1);
                 });
 
                 self.need_init = false;
             }
+            // explicit swap ping pong buffers
+            self.boid_position_buffer.swap_state();
+            self.boid_velocity_buffer.swap_state();
+            self.boid_cell_id_buffer.swap_state();
+
             wgpu_profiler!("Compute Boids", self.simulation_profiler, &mut encoder, &_app_state.device, {
                 let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("Compute Pass") });
                 
-                self.boid_buffers.swap_state(); // explicit swap ping pong buffers
                 compute_pass.set_pipeline(&self.compute_pipeline);
                 compute_pass.set_bind_group(0, &self.simulation_parameters_uniform_buffer.bind_group(), &[]);
-                compute_pass.set_bind_group(1, self.boid_buffers.get_current_ping_pong_bind_group(), &[]);
+                compute_pass.set_bind_group(1, self.boid_position_buffer.get_current_ping_pong_bind_group(), &[]);
+                compute_pass.set_bind_group(2, self.boid_velocity_buffer.get_current_ping_pong_bind_group(), &[]);
+                compute_pass.set_bind_group(3, self.boid_cell_id_buffer.get_current_ping_pong_bind_group(), &[]);
                 compute_pass.dispatch_workgroups(dispatch_group_count, 1, 1);
             });
 
@@ -272,7 +329,9 @@ impl oxyde::App for RustyBoids {
                 screen_render_pass.set_vertex_buffer(0, self.vertices_buffer.slice(..));
                 screen_render_pass.set_vertex_buffer(1, self.boids_sorting_id_buffer_wrapper.buffer().slice(..));
                 screen_render_pass.set_bind_group(0, &self.simulation_parameters_uniform_buffer.bind_group(), &[]);
-                screen_render_pass.set_bind_group(1, self.boid_buffers.get_current_target_bind_group(), &[]);
+                screen_render_pass.set_bind_group(1, self.boid_position_buffer.get_current_target_bind_group(), &[]);
+                screen_render_pass.set_bind_group(2, self.boid_velocity_buffer.get_current_target_bind_group(), &[]);
+                screen_render_pass.set_bind_group(3, self.boid_cell_id_buffer.get_current_target_bind_group(), &[]);
                 screen_render_pass.draw(0..3, 0..self.boids_count);
             });
         });

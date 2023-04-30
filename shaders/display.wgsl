@@ -1,9 +1,3 @@
-struct BoidData {
-    position: vec2<f32>,
-    velocity: vec2<f32>,
-    current_cell_id: vec2<u32>,
-};
-
 struct SimulationParameters {
     delta_t: f32,
     view_radius: f32,
@@ -14,7 +8,10 @@ struct SimulationParameters {
 }
 
 @group(0) @binding(0) var<uniform> simulationParameters : SimulationParameters;
-@group(1) @binding(0) var<storage, read> boids : array<BoidData>;
+
+@group(1) @binding(0) var<storage, read> boidsPositionSrc : array<vec2<f32>>;
+@group(2) @binding(0) var<storage, read> boidsVelocitySrc : array<vec2<f32>>;
+@group(3) @binding(0) var<storage, read> boidsCellIdSrc : array<vec2<u32>>;
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
@@ -28,9 +25,11 @@ fn vs_main(
 ) -> VertexOutput {
     var out: VertexOutput;
 
-    var boid: BoidData = boids[boid_sorting_id];
+    var boid_position = boidsPositionSrc[boid_sorting_id];
+    var boid_velocity = boidsVelocitySrc[boid_sorting_id];
+    var boid_cell_id = boidsCellIdSrc[boid_sorting_id];
 
-    let angle = -atan2(boid.velocity.x, boid.velocity.y);
+    let angle = -atan2(boid_velocity.x, boid_velocity.y);
     let c = cos(angle);
     let s = sin(angle);
 
@@ -42,10 +41,10 @@ fn vs_main(
     pos *= scale;
     
     // shift to displat boid in [0, 1] in range of the screen [-1, 1]
-    let centered_boid = boid.position * 2.0 - 1.0;
+    let centered_boid = boid_position * 2.0 - 1.0;
 
     out.clip_position = vec4<f32>(pos.x + centered_boid.x, pos.y + centered_boid.y, 0.0, 1.0);
-    let color_factor = cell_factor(boid.current_cell_id.x, simulationParameters.grid_count);
+    let color_factor = cell_factor(boid_cell_id.x, simulationParameters.grid_count);
     out.color = palette(color_factor, vec3<f32>(0.2,0.2,0.2),vec3<f32>(0.8,0.8,0.8),vec3<f32>(1.0,1.0,1.0)*14.2857,vec3<f32>(0.0,0.33,0.67));
     return out;
 }

@@ -1,13 +1,3 @@
-struct BoidData {
-  position: vec2<f32>,
-  velocity: vec2<f32>,
-  current_cell_id: vec2<u32>,
-};
-
-struct Boids {
-  boids : array<BoidData>,
-}
-
 struct InitParameters {
   seed: u32,
 }
@@ -23,8 +13,13 @@ struct SimulationParameters {
 
 @group(0) @binding(0) var<uniform> initParameters : InitParameters;
 @group(1) @binding(0) var<uniform> simulationParameters : SimulationParameters;
-@group(2) @binding(0) var<storage, read> boidsSrc : Boids;
-@group(2) @binding(1) var<storage, read_write> boidsDst : Boids;
+
+// @group(2) @binding(0) var<storage, read> boidsPositionSrc : array<vec2<f32>>;
+@group(2) @binding(1) var<storage, read_write> boidsPositionDst : array<vec2<f32>>;
+// @group(3) @binding(0) var<storage, read> boidsVelocitySrc : array<vec2<f32>>;
+@group(3) @binding(1) var<storage, read_write> boidsVelocityDst : array<vec2<f32>>;
+// @group(4) @binding(0) var<storage, read> boidsCellIdSrc : array<vec2<u32>>;
+@group(4) @binding(1) var<storage, read_write> boidsCellIdDst : array<vec2<u32>>;
 
 // from iq https://www.shadertoy.com/view/llGSzw
 fn hash1(n: u32) -> f32 {
@@ -40,14 +35,14 @@ fn position_to_grid_cell_id(position: vec2<f32>, grid_count: u32) -> u32 {
 
 @compute @workgroup_size(64)
 fn cs_main(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
-  let total = arrayLength(&boidsSrc.boids);
+  let total = arrayLength(&boidsPositionDst);
   let index: u32 = GlobalInvocationID.x;
   if (index >= total) { return; }
 
   let alterated_index: u32 = index * 142857u + initParameters.seed;
 
   // Init boid with random velocity and position
-  boidsDst.boids[index].position = vec2<f32>(hash1(alterated_index), hash1(alterated_index + 1u));
-  boidsDst.boids[index].velocity = normalize(vec2<f32>(hash1(alterated_index + 2u), hash1(alterated_index + 3u)) * 2.0 - 1.0)* 0.01;
-  boidsDst.boids[index].current_cell_id.x = position_to_grid_cell_id(boidsDst.boids[index].position, simulationParameters.grid_count);
+  boidsPositionDst[index] = vec2<f32>(hash1(alterated_index), hash1(alterated_index + 1u));
+  boidsVelocityDst[index] = normalize(vec2<f32>(hash1(alterated_index + 2u), hash1(alterated_index + 3u)) * 2.0 - 1.0)* 0.01;
+  boidsCellIdDst[index].x = position_to_grid_cell_id(boidsPositionDst[index], simulationParameters.grid_count);
 }

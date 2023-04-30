@@ -1,13 +1,3 @@
-struct BoidData {
-    position: vec2<f32>,
-    velocity: vec2<f32>,
-    current_cell_id: vec2<u32>,
-};
-
-struct Boids {
-  boids : array<BoidData>,
-}
-
 struct SimulationParameters {
     delta_t: f32,
     view_radius: f32,
@@ -18,8 +8,15 @@ struct SimulationParameters {
 }
 
 @group(0) @binding(0) var<uniform> simulationParameters : SimulationParameters;
-@group(1) @binding(0) var<storage, read> boidsSrc : Boids;
-@group(1) @binding(1) var<storage, read_write> boidsDst : Boids;
+
+@group(1) @binding(0) var<storage, read> boidsPositionSrc : array<vec2<f32>>;
+@group(1) @binding(1) var<storage, read_write> boidsPositionDst : array<vec2<f32>>;
+
+@group(2) @binding(0) var<storage, read> boidsVelocitySrc : array<vec2<f32>>;
+@group(2) @binding(1) var<storage, read_write> boidsVelocityDst : array<vec2<f32>>;
+
+@group(3) @binding(0) var<storage, read> boidsCellIdSrc : array<vec2<u32>>;
+@group(3) @binding(1) var<storage, read_write> boidsCellIdDst : array<vec2<u32>>;
 
 fn position_to_grid_cell_id(position: vec2<f32>, grid_count: u32) -> u32 {
   let position_id_f32: vec2<f32> = floor(position * f32(grid_count));
@@ -28,12 +25,12 @@ fn position_to_grid_cell_id(position: vec2<f32>, grid_count: u32) -> u32 {
 
 @compute @workgroup_size(64)
 fn cs_main(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
-  let total = arrayLength(&boidsSrc.boids);
+  let total = arrayLength(&boidsPositionSrc);
   let index = GlobalInvocationID.x;
   if (index >= total) { return; }
 
-  var currentPosition : vec2<f32> = boidsSrc.boids[index].position;
-  var currentVelocity : vec2<f32> = boidsSrc.boids[index].velocity;
+  var currentPosition : vec2<f32> = boidsPositionSrc[index];
+  var currentVelocity : vec2<f32> = boidsVelocitySrc[index];
 
   // Flocking
   var avgPosition : vec2<f32> = vec2<f32>(0.0, 0.0);
@@ -48,8 +45,8 @@ fn cs_main(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
       continue;
     }
 
-    let otherPosition = boidsSrc.boids[i].position;
-    let otherVelocity = boidsSrc.boids[i].velocity;
+    let otherPosition = boidsPositionSrc[i];
+    let otherVelocity = boidsVelocitySrc[i];
 
     let distance = distance(otherPosition, currentPosition);
 
@@ -98,9 +95,9 @@ fn cs_main(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
   newPosition = wrap_arroud(newPosition);
 
   // Write back to storage buffer
-  boidsDst.boids[index].position = newPosition;
-  boidsDst.boids[index].velocity = newVelocity;
-  boidsDst.boids[index].current_cell_id.x = position_to_grid_cell_id(newPosition, simulationParameters.grid_count);
+  boidsPositionDst[index] = newPosition;
+  boidsVelocityDst[index] = newVelocity;
+  boidsCellIdDst[index].x = position_to_grid_cell_id(newPosition, simulationParameters.grid_count);
 }
 
 fn wrap_arroud(v : vec2<f32>) -> vec2<f32> {
