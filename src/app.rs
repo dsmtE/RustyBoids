@@ -4,8 +4,8 @@ use oxyde::{
     wgpu,
     wgpu_utils::{
         uniform_buffer::UniformBufferWrapper,
-        PingPongBuffer,
         SingleBufferWrapper,
+        binding_builder,
     },
     winit,
     AppState,
@@ -28,22 +28,23 @@ struct InitParametersUniformBufferContent {
 const WORKGROUP_SIZE: u32 = 64;
 
 pub struct RustyBoids {
-    boids_count: u32,
     render_pipeline: wgpu::RenderPipeline,
     compute_pipeline: wgpu::ComputePipeline,
     init_pipeline: wgpu::ComputePipeline,
 
     vertices_buffer: wgpu::Buffer,
 
-    boid_position_buffer: PingPongBuffer,
-    boid_velocity_buffer: PingPongBuffer,
-    boid_cell_id_buffer: PingPongBuffer,
-
     boids_sorting_id_buffer_wrapper: SingleBufferWrapper,
     simulation_profiler: GpuProfiler,
 
     init_parameters_uniform_buffer: UniformBufferWrapper<InitParametersUniformBufferContent>,
     simulation_parameters_uniform_buffer: UniformBufferWrapper<SimulationParametersUniformBufferContent>,
+
+    ping_pong_state: bool,
+    ping_pong_bind_group: wgpu::BindGroup,
+    pong_ping_bind_group: wgpu::BindGroup,
+    ping_bind_group: wgpu::BindGroup,
+    pong_bind_group: wgpu::BindGroup,
 
     need_init: bool,
 }
@@ -52,44 +53,21 @@ impl oxyde::App for RustyBoids {
     fn create(_app_state: &mut AppState) -> Self {
         let initial_boids_count: u32 = 512;
 
-        let boid_position_buffer = PingPongBuffer::from_buffer_descriptor(
+        let (
+            ping_pong_bind_group_layout_builder_descriptor,
+            ping_pong_bind_group,
+            pong_ping_bind_group,
+            read_only_bind_group_layout_builder_descriptor,
+            ping_bind_group,
+            pong_bind_group,
+        ) = RustyBoids::create_boids_buffers_and_bind_groups(
             &_app_state.device,
-            &wgpu::BufferDescriptor {
-                label: Some("Boid Position Buffer"),
-                size: initial_boids_count as u64 * std::mem::size_of::<BoidsPosition>() as u64,
-                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            },
-            wgpu::ShaderStages::VERTEX,
+            initial_boids_count,
             wgpu::ShaderStages::COMPUTE,
-        );
-
-        let boid_velocity_buffer = PingPongBuffer::from_buffer_descriptor(
-            &_app_state.device,
-            &wgpu::BufferDescriptor {
-                label: Some("Boid Velocity Buffer"),
-                size: initial_boids_count as u64 * std::mem::size_of::<BoidsVelocity>() as u64,
-                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            },
-            wgpu::ShaderStages::VERTEX,
-            wgpu::ShaderStages::COMPUTE,
-        );
-
-        let boid_cell_id_buffer = PingPongBuffer::from_buffer_descriptor(
-            &_app_state.device,
-            &wgpu::BufferDescriptor {
-                label: Some("Boid Cell Id Buffer"),
-                size: initial_boids_count as u64 * std::mem::size_of::<BoidsCellId>() as u64,
-                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            },
-            wgpu::ShaderStages::VERTEX,
-            wgpu::ShaderStages::COMPUTE,
+            wgpu::ShaderStages::VERTEX
         );
 
         let sorting_ids: Vec<BoidSortingId> = (0..initial_boids_count).map(|i| i as BoidSortingId).collect();
-
         let boids_sorting_id_buffer_wrapper = SingleBufferWrapper::new_from_data(
             &_app_state.device,
             &sorting_ids,
@@ -119,121 +97,64 @@ impl oxyde::App for RustyBoids {
 
         let simulation_parameters_uniform_buffer = UniformBufferWrapper::new(
             &_app_state.device,
-            SimulationParametersUniformBufferContent::default(),
+            SimulationParametersUniformBufferContent{
+                boids_count: initial_boids_count,
+                ..SimulationParametersUniformBufferContent::default()
+            },
             wgpu::ShaderStages::all(),
         );
 
-        // Compute Pipeline
         let compute_shader = _app_state.device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Compute Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/computeNaive.wgsl").into()),
         });
 
-        let compute_pipeline = _app_state.device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("Compute pipeline"),
-            layout: Some(&_app_state.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Compute Pipeline"),
-                bind_group_layouts: &[
-                    &simulation_parameters_uniform_buffer.layout(),
-                    boid_position_buffer.get_ping_pong_bind_group_layout(),
-                    boid_velocity_buffer.get_ping_pong_bind_group_layout(),
-                    boid_cell_id_buffer.get_ping_pong_bind_group_layout(),
-                    ],
-                push_constant_ranges: &[],
-            })),
-            module: &compute_shader,
-            entry_point: "cs_main",
-        });
-
-        // Init Pipeline
         let init_shader = _app_state.device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Init Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/init.wgsl").into()),
         });
 
-        let init_pipeline = _app_state.device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("Init pipeline"),
-            layout: Some(&_app_state.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Init Pipeline"),
-                bind_group_layouts: &[
-                    &init_parameters_uniform_buffer.layout(),
-                    &simulation_parameters_uniform_buffer.layout(),
-                    boid_position_buffer.get_ping_pong_bind_group_layout(),
-                    boid_velocity_buffer.get_ping_pong_bind_group_layout(),
-                    boid_cell_id_buffer.get_ping_pong_bind_group_layout()
-                    ],
-                push_constant_ranges: &[],
-            })),
-            module: &init_shader,
-            entry_point: "cs_main",
-        });
-
-        // Render Pipeline
         let display_shader = _app_state.device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Display Shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/display.wgsl").into()),
         });
 
-        let render_pipeline = _app_state.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Render Pipeline"),
-            layout: Some(&_app_state.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[
-                    &simulation_parameters_uniform_buffer.layout(),
-                    boid_position_buffer.get_buffer_bind_group_layout(),
-                    boid_velocity_buffer.get_buffer_bind_group_layout(),
-                    boid_cell_id_buffer.get_buffer_bind_group_layout()
-                    ],
-                push_constant_ranges: &[],
-            })),
-
-            vertex: wgpu::VertexState {
-                module: &display_shader,
-                entry_point: "vs_main",
-                buffers: &[
-                    wgpu::VertexBufferLayout {
-                        array_stride: std::mem::size_of::<nalgebra_glm::Vec2>() as _,
-                        step_mode: wgpu::VertexStepMode::Vertex,
-                        attributes: &wgpu::vertex_attr_array![0 => Float32x2],
-                    },
-                    wgpu::VertexBufferLayout {
-                        array_stride: std::mem::size_of::<BoidSortingId>() as _,
-                        step_mode: wgpu::VertexStepMode::Instance,
-                        attributes: &wgpu::vertex_attr_array![1 => Uint32],
-                    },
-                ],
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &display_shader,
-                entry_point: "fs_main",
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: _app_state.config.format,
-                    blend: Some(wgpu::BlendState::REPLACE),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            multiview: None,
-        });
+        let (
+            init_pipeline,
+            compute_pipeline,
+            render_pipeline,
+        ) = RustyBoids::create_pipelines(
+            &_app_state.device,
+            &_app_state.config,
+            &display_shader,
+            &compute_shader,
+            &init_shader,
+            &ping_pong_bind_group_layout_builder_descriptor.layout,
+            &read_only_bind_group_layout_builder_descriptor.layout,
+            &init_parameters_uniform_buffer.layout(),
+            &simulation_parameters_uniform_buffer.layout(),
+        );
 
         let simulation_profiler = GpuProfiler::new(4, _app_state.queue.get_timestamp_period(), _app_state.device.features());
 
         Self {
-            boids_count: initial_boids_count,
             need_init: true,
+
             init_pipeline,
             render_pipeline,
             compute_pipeline,
-            boid_position_buffer,
-            boid_velocity_buffer,
-            boid_cell_id_buffer,
+
             simulation_profiler,
             vertices_buffer,
             init_parameters_uniform_buffer,
             simulation_parameters_uniform_buffer,
             boids_sorting_id_buffer_wrapper,
+
+            ping_pong_bind_group,
+            pong_ping_bind_group,
+            ping_bind_group,
+            pong_bind_group,
+            ping_pong_state: true,
         }
     }
 
@@ -280,7 +201,7 @@ impl oxyde::App for RustyBoids {
 
         wgpu_profiler!("Wgpu Profiler", self.simulation_profiler, &mut encoder, &_app_state.device, {
 
-            let dispatch_group_count = std::cmp::max(1, self.boids_count / WORKGROUP_SIZE);
+            let dispatch_group_count = std::cmp::max(1, self.boids_count() / WORKGROUP_SIZE);
             
             if self.need_init {
                 wgpu_profiler!("Init Boids", self.simulation_profiler, &mut encoder, &_app_state.device, {
@@ -289,27 +210,22 @@ impl oxyde::App for RustyBoids {
                     compute_pass.set_pipeline(&self.init_pipeline);
                     compute_pass.set_bind_group(0, &self.init_parameters_uniform_buffer.bind_group(), &[]);
                     compute_pass.set_bind_group(1, &self.simulation_parameters_uniform_buffer.bind_group(), &[]);
-                    compute_pass.set_bind_group(2, self.boid_position_buffer.get_current_ping_pong_bind_group(), &[]);
-                    compute_pass.set_bind_group(3, self.boid_velocity_buffer.get_current_ping_pong_bind_group(), &[]);
-                    compute_pass.set_bind_group(4, self.boid_cell_id_buffer.get_current_ping_pong_bind_group(), &[]);
+                    compute_pass.set_bind_group(2, if self.ping_pong_state { &self.ping_pong_bind_group } else { &self.pong_ping_bind_group }, &[]);
                     compute_pass.dispatch_workgroups(dispatch_group_count, 1, 1);
                 });
 
                 self.need_init = false;
             }
+
             // explicit swap ping pong buffers
-            self.boid_position_buffer.swap_state();
-            self.boid_velocity_buffer.swap_state();
-            self.boid_cell_id_buffer.swap_state();
+            self.ping_pong_state = !self.ping_pong_state;
 
             wgpu_profiler!("Compute Boids", self.simulation_profiler, &mut encoder, &_app_state.device, {
                 let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("Compute Pass") });
                 
                 compute_pass.set_pipeline(&self.compute_pipeline);
                 compute_pass.set_bind_group(0, &self.simulation_parameters_uniform_buffer.bind_group(), &[]);
-                compute_pass.set_bind_group(1, self.boid_position_buffer.get_current_ping_pong_bind_group(), &[]);
-                compute_pass.set_bind_group(2, self.boid_velocity_buffer.get_current_ping_pong_bind_group(), &[]);
-                compute_pass.set_bind_group(3, self.boid_cell_id_buffer.get_current_ping_pong_bind_group(), &[]);
+                compute_pass.set_bind_group(1, if self.ping_pong_state { &self.ping_pong_bind_group } else { &self.pong_ping_bind_group }, &[]);
                 compute_pass.dispatch_workgroups(dispatch_group_count, 1, 1);
             });
 
@@ -329,10 +245,8 @@ impl oxyde::App for RustyBoids {
                 screen_render_pass.set_vertex_buffer(0, self.vertices_buffer.slice(..));
                 screen_render_pass.set_vertex_buffer(1, self.boids_sorting_id_buffer_wrapper.buffer().slice(..));
                 screen_render_pass.set_bind_group(0, &self.simulation_parameters_uniform_buffer.bind_group(), &[]);
-                screen_render_pass.set_bind_group(1, self.boid_position_buffer.get_current_target_bind_group(), &[]);
-                screen_render_pass.set_bind_group(2, self.boid_velocity_buffer.get_current_target_bind_group(), &[]);
-                screen_render_pass.set_bind_group(3, self.boid_cell_id_buffer.get_current_target_bind_group(), &[]);
-                screen_render_pass.draw(0..3, 0..self.boids_count);
+                screen_render_pass.set_bind_group(1, if self.ping_pong_state { &self.pong_bind_group } else { &self.ping_bind_group }, &[]);
+                screen_render_pass.draw(0..3, 0..self.boids_count());
             });
         });
 
@@ -347,5 +261,247 @@ impl oxyde::App for RustyBoids {
         self.simulation_profiler.end_frame().unwrap();
 
         Ok(())
+    }
+}
+
+impl RustyBoids {
+    // fn that create buffers and bind groups for boids data
+    fn create_boids_buffers_and_bind_groups(
+        device: &wgpu::Device,
+        boids_count: u32,
+        ping_pong_buffer_visibility: wgpu::ShaderStages,
+        read_only_buffer_visibility: wgpu::ShaderStages,
+    ) -> (
+        binding_builder::BindGroupLayoutWithDesc,
+        wgpu::BindGroup,
+        wgpu::BindGroup,
+        binding_builder::BindGroupLayoutWithDesc,
+        wgpu::BindGroup,
+        wgpu::BindGroup,
+    ) {
+
+        let boids_count = boids_count as u64;
+        // let usage = wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST;
+        let usage = wgpu::BufferUsages::STORAGE;
+
+        let position_buffer_descriptor = wgpu::BufferDescriptor {
+            label: Some("Position"),
+            size: boids_count * std::mem::size_of::<BoidsPosition>() as u64,
+            usage,
+            mapped_at_creation: false,
+        };
+
+        let velocity_buffer_descriptor = wgpu::BufferDescriptor {
+            label: Some("Velocity"),
+            size: boids_count * std::mem::size_of::<BoidsVelocity>() as u64,
+            usage,
+            mapped_at_creation: false,
+        };
+
+        let cell_id_buffer_descriptor = wgpu::BufferDescriptor {
+            label: Some("Cell Id"),
+            size: boids_count * std::mem::size_of::<BoidsCellId>() as u64,
+            usage,
+            mapped_at_creation: false,
+        };
+
+        let position_ping_buffer = device.create_buffer(&position_buffer_descriptor);
+        let velocity_ping_buffer = device.create_buffer(&velocity_buffer_descriptor);
+        let cell_id_ping_buffer = device.create_buffer(&cell_id_buffer_descriptor);
+
+        let position_pong_buffer = device.create_buffer(&position_buffer_descriptor);
+        let velocity_pong_buffer = device.create_buffer(&velocity_buffer_descriptor);
+        let cell_id_pong_buffer = device.create_buffer(&cell_id_buffer_descriptor);
+
+        let ping_pong_bind_group_layout_builder_descriptor = binding_builder::BindGroupLayoutBuilder::new()
+            .add_binding(ping_pong_buffer_visibility, wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                has_dynamic_offset: false,
+                min_binding_size: wgpu::BufferSize::new(position_buffer_descriptor.size),
+            })
+            .add_binding(ping_pong_buffer_visibility, wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                has_dynamic_offset: false,
+                min_binding_size: wgpu::BufferSize::new(velocity_buffer_descriptor.size),
+            })
+            .add_binding(ping_pong_buffer_visibility, wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                has_dynamic_offset: false,
+                min_binding_size: wgpu::BufferSize::new(cell_id_buffer_descriptor.size),
+            })
+
+            .add_binding(ping_pong_buffer_visibility, wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Storage { read_only: false },
+                has_dynamic_offset: false,
+                min_binding_size: wgpu::BufferSize::new(position_buffer_descriptor.size),
+            })
+            .add_binding(ping_pong_buffer_visibility, wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Storage { read_only: false },
+                has_dynamic_offset: false,
+                min_binding_size: wgpu::BufferSize::new(velocity_buffer_descriptor.size),
+            })
+            .add_binding(ping_pong_buffer_visibility, wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Storage { read_only: false },
+                has_dynamic_offset: false,
+                min_binding_size: wgpu::BufferSize::new(cell_id_buffer_descriptor.size),
+            })
+            .create(device, Some("Boids data (ping <-> pong)"));
+
+        let ping_pong_bind_group = binding_builder::BindGroupBuilder::new(&ping_pong_bind_group_layout_builder_descriptor)
+            .resource(position_ping_buffer.as_entire_binding())
+            .resource(velocity_ping_buffer.as_entire_binding())
+            .resource(cell_id_ping_buffer.as_entire_binding())
+
+            .resource(position_pong_buffer.as_entire_binding())
+            .resource(velocity_pong_buffer.as_entire_binding())
+            .resource(cell_id_pong_buffer.as_entire_binding())
+            .create(device, Some("Boids data (ping -> pong)"));
+
+        let pong_ping_bind_group = binding_builder::BindGroupBuilder::new(&ping_pong_bind_group_layout_builder_descriptor)
+            .resource(position_pong_buffer.as_entire_binding())
+            .resource(velocity_pong_buffer.as_entire_binding())
+            .resource(cell_id_pong_buffer.as_entire_binding())
+
+            .resource(position_ping_buffer.as_entire_binding())
+            .resource(velocity_ping_buffer.as_entire_binding())
+            .resource(cell_id_ping_buffer.as_entire_binding())
+            .create(device, Some("Boids data (pong -> ping)"));
+        
+        // read only bind group for final display
+        let has_dynamic_offset = false;
+        let read_only_bind_group_layout_builder_descriptor = binding_builder::BindGroupLayoutBuilder::new()
+            .add_binding(read_only_buffer_visibility, wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                has_dynamic_offset,
+                min_binding_size: wgpu::BufferSize::new(position_buffer_descriptor.size),
+            })
+            .add_binding(read_only_buffer_visibility, wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                has_dynamic_offset,
+                min_binding_size: wgpu::BufferSize::new(velocity_buffer_descriptor.size),
+            })
+            .add_binding(read_only_buffer_visibility, wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                has_dynamic_offset,
+                min_binding_size: wgpu::BufferSize::new(cell_id_buffer_descriptor.size),
+            })
+            .create(device, Some("Boids data (read only)"));
+
+        let ping_bind_group = binding_builder::BindGroupBuilder::new(&read_only_bind_group_layout_builder_descriptor)
+            .resource(position_ping_buffer.as_entire_binding())
+            .resource(velocity_ping_buffer.as_entire_binding())
+            .resource(cell_id_ping_buffer.as_entire_binding())
+            .create(device, Some("Boids data (ping read only)"));
+
+        let pong_bind_group = binding_builder::BindGroupBuilder::new(&read_only_bind_group_layout_builder_descriptor)
+            .resource(position_pong_buffer.as_entire_binding())
+            .resource(velocity_pong_buffer.as_entire_binding())
+            .resource(cell_id_pong_buffer.as_entire_binding())
+            .create(device, Some("Boids data (pong read only)"));
+
+        (
+            ping_pong_bind_group_layout_builder_descriptor,
+            ping_pong_bind_group,
+            pong_ping_bind_group,
+            read_only_bind_group_layout_builder_descriptor,
+            ping_bind_group,
+            pong_bind_group,
+        )
+    }
+
+    // fn to create pipelines
+    fn create_pipelines(
+        device: &wgpu::Device,
+        surface_configuration: &wgpu::SurfaceConfiguration,
+        display_shader: &wgpu::ShaderModule,
+        compute_shader: &wgpu::ShaderModule,
+        init_shader: &wgpu::ShaderModule,
+
+        ping_pong_bind_group_layout: &wgpu::BindGroupLayout,
+        read_only_bind_group_layout: &wgpu::BindGroupLayout,
+
+        init_parameters_uniform_buffer_layout: &wgpu::BindGroupLayout,
+        simulation_parameters_uniform_buffer_layout: &wgpu::BindGroupLayout,
+    ) -> (
+        wgpu::ComputePipeline,
+        wgpu::ComputePipeline,
+        wgpu::RenderPipeline
+    ) {
+        let compute_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("Compute pipeline"),
+            layout: Some(&device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Compute Pipeline"),
+                bind_group_layouts: &[
+                    simulation_parameters_uniform_buffer_layout,
+                    ping_pong_bind_group_layout,
+                    ],
+                push_constant_ranges: &[],
+            })),
+            module: compute_shader,
+            entry_point: "cs_main",
+        });
+
+        let init_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("Init pipeline"),
+            layout: Some(&device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Init Pipeline"),
+                bind_group_layouts: &[
+                    init_parameters_uniform_buffer_layout,
+                    simulation_parameters_uniform_buffer_layout,
+                    ping_pong_bind_group_layout,
+                    ],
+                push_constant_ranges: &[],
+            })),
+            module: &init_shader,
+            entry_point: "cs_main",
+        });
+
+        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Render Pipeline"),
+            layout: Some(&device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Render Pipeline Layout"),
+                bind_group_layouts: &[
+                    simulation_parameters_uniform_buffer_layout,
+                    read_only_bind_group_layout,
+                    ],
+                push_constant_ranges: &[],
+            })),
+
+            vertex: wgpu::VertexState {
+                module: display_shader,
+                entry_point: "vs_main",
+                buffers: &[
+                    wgpu::VertexBufferLayout {
+                        array_stride: std::mem::size_of::<nalgebra_glm::Vec2>() as _,
+                        step_mode: wgpu::VertexStepMode::Vertex,
+                        attributes: &wgpu::vertex_attr_array![0 => Float32x2],
+                    },
+                    wgpu::VertexBufferLayout {
+                        array_stride: std::mem::size_of::<BoidSortingId>() as _,
+                        step_mode: wgpu::VertexStepMode::Instance,
+                        attributes: &wgpu::vertex_attr_array![1 => Uint32],
+                    },
+                ],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &display_shader,
+                entry_point: "fs_main",
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: surface_configuration.format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            multiview: None,
+        });
+
+        (init_pipeline, compute_pipeline, render_pipeline)
+    }
+
+    fn boids_count(&self) -> u32 {
+        self.simulation_parameters_uniform_buffer.content().boids_count
     }
 }

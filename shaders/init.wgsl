@@ -3,6 +3,7 @@ struct InitParameters {
 }
 
 struct SimulationParameters {
+  boids_count: u32,
   delta_t: f32,
   view_radius: f32,
   cohesion_scale: f32,
@@ -14,12 +15,13 @@ struct SimulationParameters {
 @group(0) @binding(0) var<uniform> initParameters : InitParameters;
 @group(1) @binding(0) var<uniform> simulationParameters : SimulationParameters;
 
-// @group(2) @binding(0) var<storage, read> boidsPositionSrc : array<vec2<f32>>;
-@group(2) @binding(1) var<storage, read_write> boidsPositionDst : array<vec2<f32>>;
-// @group(3) @binding(0) var<storage, read> boidsVelocitySrc : array<vec2<f32>>;
-@group(3) @binding(1) var<storage, read_write> boidsVelocityDst : array<vec2<f32>>;
-// @group(4) @binding(0) var<storage, read> boidsCellIdSrc : array<vec2<u32>>;
-@group(4) @binding(1) var<storage, read_write> boidsCellIdDst : array<vec2<u32>>;
+// @group(1) @binding(0) var<storage, read> boidsPositionSrc : array<vec2<f32>>;
+// @group(1) @binding(1) var<storage, read> boidsVelocitySrc : array<vec2<f32>>;
+// @group(1) @binding(2) var<storage, read> boidsCellIdSrc : array<vec2<u32>>;
+
+@group(2) @binding(3) var<storage, read_write> boidsPositionDst : array<vec2<f32>>;
+@group(2) @binding(4) var<storage, read_write> boidsVelocityDst : array<vec2<f32>>;
+@group(2) @binding(5) var<storage, read_write> boidsCellIdDst : array<vec2<u32>>;
 
 // from iq https://www.shadertoy.com/view/llGSzw
 fn hash1(n: u32) -> f32 {

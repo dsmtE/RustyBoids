@@ -3,6 +3,7 @@ use oxyde::egui;
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct SimulationParametersUniformBufferContent {
+    pub boids_count: u32,
     pub delta_t: f32,
     pub view_radius: f32,
     pub cohesion_scale: f32,
@@ -14,6 +15,7 @@ pub struct SimulationParametersUniformBufferContent {
 impl Default for SimulationParametersUniformBufferContent {
     fn default() -> Self {
         Self {
+            boids_count: 256,
             delta_t: 0.04,
             view_radius: 0.05,
             cohesion_scale: 0.02,

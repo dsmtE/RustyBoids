@@ -1,17 +1,18 @@
 struct SimulationParameters {
-    delta_t: f32,
-    view_radius: f32,
-    cohesion_scale: f32,
-    aligment_scale: f32,
-    separation_scale: f32,
-    grid_count: u32,
+  boids_count: u32,
+  delta_t: f32,
+  view_radius: f32,
+  cohesion_scale: f32,
+  aligment_scale: f32,
+  separation_scale: f32,
+  grid_count: u32,
 }
 
 @group(0) @binding(0) var<uniform> simulationParameters : SimulationParameters;
 
 @group(1) @binding(0) var<storage, read> boidsPositionSrc : array<vec2<f32>>;
-@group(2) @binding(0) var<storage, read> boidsVelocitySrc : array<vec2<f32>>;
-@group(3) @binding(0) var<storage, read> boidsCellIdSrc : array<vec2<u32>>;
+@group(1) @binding(1) var<storage, read> boidsVelocitySrc : array<vec2<f32>>;
+@group(1) @binding(2) var<storage, read> boidsCellIdSrc : array<vec2<u32>>;
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
