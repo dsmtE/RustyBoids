@@ -5,7 +5,7 @@ struct SimulationParameters {
   cohesion_scale: f32,
   aligment_scale: f32,
   separation_scale: f32,
-  grid_count: u32,
+  grid_size: u32,
 }
 
 @group(0) @binding(0) var<uniform> simulationParameters : SimulationParameters;
@@ -45,7 +45,7 @@ fn vs_main(
     let centered_boid = boid_position * 2.0 - 1.0;
 
     out.clip_position = vec4<f32>(pos.x + centered_boid.x, pos.y + centered_boid.y, 0.0, 1.0);
-    let color_factor = cell_factor(boid_cell_id.x, simulationParameters.grid_count);
+    let color_factor = cell_factor(boid_cell_id.x, simulationParameters.grid_size);
     out.color = palette(color_factor, vec3<f32>(0.2,0.2,0.2),vec3<f32>(0.8,0.8,0.8),vec3<f32>(1.0,1.0,1.0)*14.2857,vec3<f32>(0.0,0.33,0.67));
     return out;
 }
@@ -55,9 +55,9 @@ fn palette(t: f32, a: vec3<f32>, b: vec3<f32>, c: vec3<f32>, d: vec3<f32>) -> ve
     return a + b * cos(6.28318 * (c * t + d));
 }
 
-fn cell_factor(cell_id: u32, grid_count: u32) -> f32 {
-    let grid_count_f32 = f32(grid_count);
-    return f32(cell_id) / (grid_count_f32*grid_count_f32);
+fn cell_factor(cell_id: u32, grid_size: u32) -> f32 {
+    let grid_size_f32 = f32(grid_size);
+    return f32(cell_id) / (grid_size_f32*grid_size_f32);
 }
 
 @fragment

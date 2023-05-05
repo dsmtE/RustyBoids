@@ -9,7 +9,8 @@ pub struct SimulationParametersUniformBufferContent {
     pub cohesion_scale: f32,
     pub aligment_scale: f32,
     pub separation_scale: f32,
-    pub grid_count: u32,
+    // Grid size is the number of cells per axis
+    pub grid_size: u32,
 }
 
 impl Default for SimulationParametersUniformBufferContent {
@@ -21,7 +22,7 @@ impl Default for SimulationParametersUniformBufferContent {
             cohesion_scale: 0.02,
             aligment_scale: 0.005,
             separation_scale: 0.05,
-            grid_count: 4,
+            grid_size: 4,
         }
     }
 }

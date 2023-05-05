@@ -9,7 +9,7 @@ struct SimulationParameters {
   cohesion_scale: f32,
   aligment_scale: f32,
   separation_scale: f32,
-  grid_count: u32,
+  grid_size: u32,
 }
 
 @group(0) @binding(0) var<uniform> initParameters : InitParameters;
@@ -30,9 +30,9 @@ fn hash1(n: u32) -> f32 {
   return f32(n & u32(0x7fffffffu))/f32(0x7fffffff);
 }
 
-fn position_to_grid_cell_id(position: vec2<f32>, grid_count: u32) -> u32 {
-  let position_id_f32: vec2<f32> = floor(position * f32(grid_count));
-  return grid_count * u32(position_id_f32.y) + u32(position_id_f32.x);
+fn position_to_grid_cell_id(position: vec2<f32>, grid_size: u32) -> u32 {
+  let position_id_f32: vec2<f32> = floor(position * f32(grid_size));
+  return grid_size * u32(position_id_f32.y) + u32(position_id_f32.x);
 }
 
 @compute @workgroup_size(64)
@@ -46,5 +46,5 @@ fn cs_main(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
   // Init boid with random velocity and position
   boidsPositionDst[index] = vec2<f32>(hash1(alterated_index), hash1(alterated_index + 1u));
   boidsVelocityDst[index] = normalize(vec2<f32>(hash1(alterated_index + 2u), hash1(alterated_index + 3u)) * 2.0 - 1.0)* 0.01;
-  boidsCellIdDst[index].x = position_to_grid_cell_id(boidsPositionDst[index], simulationParameters.grid_count);
+  boidsCellIdDst[index].x = position_to_grid_cell_id(boidsPositionDst[index], simulationParameters.grid_size);
 }
