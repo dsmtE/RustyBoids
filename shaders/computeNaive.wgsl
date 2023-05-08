@@ -20,7 +20,7 @@ struct SimulationParameters {
 
 fn position_to_grid_cell_id(position: vec2<f32>, grid_size: u32) -> u32 {
   let position_id_f32: vec2<f32> = floor(position * f32(grid_size));
-  return grid_size * u32(position_id_f32.y) + u32(position_id_f32.x);
+  return (grid_size * u32(position_id_f32.y) + u32(position_id_f32.x)) % (grid_size * grid_size);
 }
 
 @compute @workgroup_size(64)
