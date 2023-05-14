@@ -15,16 +15,21 @@ pub struct SimulationParametersUniformBufferContent {
 
 impl Default for SimulationParametersUniformBufferContent {
     fn default() -> Self {
+        let view_radius = 0.1;
         Self {
             boids_count: 256,
-            delta_t: 0.04,
-            view_radius: 0.05,
+            delta_t: 0.03,
+            view_radius,
             cohesion_scale: 0.02,
             aligment_scale: 0.005,
             separation_scale: 0.05,
-            grid_size: 4,
+            grid_size: grid_size_from_view_radius(view_radius),
         }
     }
+}
+
+pub fn grid_size_from_view_radius(view_radius: f32) -> u32 {
+    (1.0 / view_radius).ceil() as u32
 }
 
 impl SimulationParametersUniformBufferContent {

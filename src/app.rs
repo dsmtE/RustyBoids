@@ -1,3 +1,5 @@
+use std::println;
+
 use anyhow::Result;
 use oxyde::{
     egui,
@@ -38,8 +40,11 @@ pub struct RustyBoids {
 
     sorting_id_staging_buffer: StagingBufferWrapper<BoidSortingId, false>,
     sorting_id_buffer: wgpu::Buffer,
+    sorting_id_bind_group: wgpu::BindGroup,
 
-    boids_per_cell_count_buffer: Vec<u32>,
+    boids_per_cell_count_staging_buffer: StagingBufferWrapper<u32, false>,
+    boids_per_cell_count_buffer: wgpu::Buffer,
+    boids_per_cell_count_bind_group: wgpu::BindGroup,
     
     init_parameters_uniform_buffer: UniformBufferWrapper<InitParametersUniformBufferContent>,
     simulation_parameters_uniform_buffer: UniformBufferWrapper<SimulationParametersUniformBufferContent>,
@@ -132,12 +137,56 @@ impl oxyde::App for RustyBoids {
             },
         );
 
+        //bind group for sorting_id
+        let sorting_id_bind_group_layout_with_desc = binding_builder::BindGroupLayoutBuilder::new()
+            .add_binding_compute(
+                wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Storage { read_only: true },
+                    has_dynamic_offset: false,
+                    min_binding_size: wgpu::BufferSize::new(sorting_id_staging_buffer.bytes_size() as u64),
+                },
+            )
+            .create(&_app_state.device, None);
+
+        let sorting_id_bind_group = binding_builder::BindGroupBuilder::new(&sorting_id_bind_group_layout_with_desc)
+            .resource(sorting_id_buffer.as_entire_binding())
+            .create(&_app_state.device, Some("sorting_id_bind_group"));
+
         let grid_size = simulation_parameters_uniform_buffer.content().grid_size as usize;
-        let boids_per_cell_count: Vec<u32> = vec![0; grid_size * grid_size + 1];
+
+        println!("grid_size: {}", grid_size);
+        let boids_per_cell_count_staging_buffer = StagingBufferWrapper::new_from_data(
+            &_app_state.device,
+            &vec![0; grid_size * grid_size + 1],
+        );
+
+        let boids_per_cell_count_buffer = wgpu::util::DeviceExt::create_buffer_init(
+            &_app_state.device,
+            &wgpu::util::BufferInitDescriptor {
+                label: None,
+                contents: bytemuck::cast_slice(&boids_per_cell_count_staging_buffer.values_as_slice()),
+                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            },
+        );
+
+        // bind group for boid per cell count using binding_builder
+        let boids_per_cell_count_bind_group_layout_with_desc = binding_builder::BindGroupLayoutBuilder::new()
+            .add_binding_compute(
+                wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Storage { read_only: true },
+                    has_dynamic_offset: false,
+                    min_binding_size: wgpu::BufferSize::new(boids_per_cell_count_staging_buffer.bytes_size() as u64),
+                }
+            )
+            .create(&_app_state.device, None);
+
+        let boids_per_cell_count_bind_group = binding_builder::BindGroupBuilder::new(&boids_per_cell_count_bind_group_layout_with_desc)
+        .resource(boids_per_cell_count_buffer.as_entire_binding())
+        .create(&_app_state.device, Some("boids_per_cell_count_bind_group"));
 
         let compute_shader = _app_state.device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Compute Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/computeNaive.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/computeGrid.wgsl").into()),
         });
 
         let init_shader = _app_state.device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -162,6 +211,8 @@ impl oxyde::App for RustyBoids {
             &init_shader,
             &ping_pong_bind_group_layout_builder_descriptor.layout,
             &read_only_bind_group_layout_builder_descriptor.layout,
+            &sorting_id_bind_group_layout_with_desc.layout,
+            &boids_per_cell_count_bind_group_layout_with_desc.layout,
             &init_parameters_uniform_buffer.layout(),
             &simulation_parameters_uniform_buffer.layout(),
         );
@@ -179,8 +230,11 @@ impl oxyde::App for RustyBoids {
 
             sorting_id_staging_buffer,
             sorting_id_buffer,
+            sorting_id_bind_group,
 
-            boids_per_cell_count_buffer: boids_per_cell_count,
+            boids_per_cell_count_staging_buffer,
+            boids_per_cell_count_buffer,
+            boids_per_cell_count_bind_group,
 
             init_parameters_uniform_buffer,
             simulation_parameters_uniform_buffer,
@@ -241,11 +295,12 @@ impl oxyde::App for RustyBoids {
         _app_state: &mut AppState,
         _output_view: &wgpu::TextureView,
     ) -> Result<(), wgpu::SurfaceError> {
-        let mut compute_encoder: wgpu::CommandEncoder = _app_state.device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Boids Encoder") });
 
         let dispatch_group_count = std::cmp::max(1, self.boids_count() / WORKGROUP_SIZE);
-        
+
+        let mut compute_encoder: wgpu::CommandEncoder = _app_state.device
+        .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Compute Boids Encoder") });
+
         if self.need_init {
             wgpu_profiler!("Init Boids", self.simulation_profiler, &mut compute_encoder, &_app_state.device, {
                 let compute_pass = &mut compute_encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("Compute Pass") });
@@ -258,20 +313,22 @@ impl oxyde::App for RustyBoids {
             });
 
             self.need_init = false;
+        } else {
+            // explicit swap ping pong buffers
+            self.ping_pong_state = !self.ping_pong_state;
+
+            wgpu_profiler!("Compute Boids", self.simulation_profiler, &mut compute_encoder, &_app_state.device, {
+                let mut compute_pass = compute_encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("Compute Pass") });
+                
+                compute_pass.set_pipeline(&self.compute_pipeline);
+                compute_pass.set_bind_group(0, &self.simulation_parameters_uniform_buffer.bind_group(), &[]);
+                compute_pass.set_bind_group(1, if self.ping_pong_state { &self.ping_pong_bind_group } else { &self.pong_ping_bind_group }, &[]);
+                compute_pass.set_bind_group(2, &self.sorting_id_bind_group, &[]);
+                compute_pass.set_bind_group(3, &self.boids_per_cell_count_bind_group, &[]);
+                compute_pass.dispatch_workgroups(dispatch_group_count, 1, 1);
+            });
         }
-
-        // explicit swap ping pong buffers
-        self.ping_pong_state = !self.ping_pong_state;
-
-        wgpu_profiler!("Compute Boids", self.simulation_profiler, &mut compute_encoder, &_app_state.device, {
-            let mut compute_pass = compute_encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("Compute Pass") });
-            
-            compute_pass.set_pipeline(&self.compute_pipeline);
-            compute_pass.set_bind_group(0, &self.simulation_parameters_uniform_buffer.bind_group(), &[]);
-            compute_pass.set_bind_group(1, if self.ping_pong_state { &self.ping_pong_bind_group } else { &self.pong_ping_bind_group }, &[]);
-            compute_pass.dispatch_workgroups(dispatch_group_count, 1, 1);
-        });
-
+        
         wgpu_profiler!("Read cell id", self.simulation_profiler, &mut compute_encoder, &_app_state.device, {
             self.cell_id_staging_buffer.encode_read(
                 &mut compute_encoder,
@@ -296,6 +353,11 @@ impl oxyde::App for RustyBoids {
             self.sorting_id_staging_buffer.encode_write(&_app_state.queue, &mut copy_encoder, &self.sorting_id_buffer);
         });
 
+        wgpu_profiler!("Write cell count", self.simulation_profiler, &mut copy_encoder, &_app_state.device, {
+            self.boids_per_cell_count_staging_buffer.encode_write(&_app_state.queue, &mut copy_encoder, &self.boids_per_cell_count_buffer);
+        });
+
+        // TODO: why there is random crash (wgpu parent device is lost) during copy with specific simulation parameters?
         _app_state.queue.submit(Some(copy_encoder.finish()));
 
         let mut display_encoder: wgpu::CommandEncoder = _app_state.device
@@ -502,6 +564,8 @@ impl RustyBoids {
 
         ping_pong_bind_group_layout: &wgpu::BindGroupLayout,
         read_only_bind_group_layout: &wgpu::BindGroupLayout,
+        sorting_id_bind_group_layout: &wgpu::BindGroupLayout,
+        boids_per_cell_count_bind_group_layout: &wgpu::BindGroupLayout,
 
         init_parameters_uniform_buffer_layout: &wgpu::BindGroupLayout,
         simulation_parameters_uniform_buffer_layout: &wgpu::BindGroupLayout,
@@ -517,6 +581,8 @@ impl RustyBoids {
                 bind_group_layouts: &[
                     simulation_parameters_uniform_buffer_layout,
                     ping_pong_bind_group_layout,
+                    sorting_id_bind_group_layout,
+                    boids_per_cell_count_bind_group_layout,
                     ],
                 push_constant_ranges: &[],
             })),
@@ -592,15 +658,16 @@ impl RustyBoids {
 
         let boid_count_usize = self.boids_count() as usize;
 
+        let boids_per_cell_count_slice = self.boids_per_cell_count_staging_buffer.values_as_slice_mut();
         // count boids per cell
-        self.boids_per_cell_count_buffer.fill(0);
+        boids_per_cell_count_slice.fill(0);
         self.cell_id_staging_buffer.iter().for_each(|boid_cell_id| {
-            self.boids_per_cell_count_buffer[boid_cell_id.x as usize] += 1;
+            boids_per_cell_count_slice[boid_cell_id.x as usize] += 1;
         });
 
         // partial sum of boids per cell
-        for i in 1..self.boids_per_cell_count_buffer.len() {
-            self.boids_per_cell_count_buffer[i] += self.boids_per_cell_count_buffer[i-1];
+        for i in 1..boids_per_cell_count_slice.len() {
+            boids_per_cell_count_slice[i] += boids_per_cell_count_slice[i-1];
         }
 
         // sort boids
@@ -608,15 +675,19 @@ impl RustyBoids {
         let sorting_id_values_slice = self.sorting_id_staging_buffer.values_as_slice_mut();
         for i in 0..boid_count_usize {
             let boid_cell_id = self.cell_id_staging_buffer[i].x;
-            let boid_target_index = self.boids_per_cell_count_buffer[boid_cell_id as usize]-1;
-            self.boids_per_cell_count_buffer[boid_cell_id as usize] -= 1;
+            let boid_target_index = boids_per_cell_count_slice[boid_cell_id as usize]-1;
+            boids_per_cell_count_slice[boid_cell_id as usize] -= 1;
             sorting_id_values_slice[boid_target_index as usize] = i as BoidSortingId;
         }
 
         // Debug display
-        // println!("boids_sorting_id_value: {:?}", self.sorting_id_staging_buffer.values_as_slice());
-        // println!("boids_cell_id_using_sorting_order: {:?}", 
-        //     self.sorting_id_staging_buffer.iter().map(|boid_sorting_id| self.cell_id_staging_buffer[*boid_sorting_id as usize].x).collect::<Vec<_>>()
+        // println!("boids_sorting_id_value: {:?}\n", self.sorting_id_staging_buffer.values_as_slice());
+        // println!("boids_per_cell_count: {:?}\n", self.boids_per_cell_count_staging_buffer.values_as_slice());
+
+        // let boids_cell_id_using_sorting_order = self.sorting_id_staging_buffer.iter().map(|boid_sorting_id| self.cell_id_staging_buffer[*boid_sorting_id as usize].x).collect::<Vec<_>>();
+        // println!("boids_cell_id_using_sorting_order: {:?} (sorted : {:?})\n\n", 
+        //     boids_cell_id_using_sorting_order,
+        //     boids_cell_id_using_sorting_order.windows(2).all(|x| x[0] <= x[1])
         // );
     }
 }
