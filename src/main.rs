@@ -1,5 +1,4 @@
 mod app;
-mod boids;
 mod simulation;
 mod utils;
 
@@ -43,6 +42,10 @@ fn main() {
             // window_surface_present_mode: oxyde::wgpu::PresentMode::Immediate,
             ..oxyde::RenderingConfig {
                 device_features: wgpu_profiler::GpuProfiler::ALL_WGPU_TIMER_FEATURES | oxyde::wgpu::Features::default(),
+                device_limits: oxyde::wgpu::Limits{
+                    max_bind_groups: 6,
+                    ..oxyde::wgpu::Limits::default()
+                },
                 ..oxyde::RenderingConfig::default()
             }
         },
