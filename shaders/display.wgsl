@@ -12,7 +12,7 @@ struct SimulationParameters {
 
 @group(1) @binding(0) var<storage, read> boidsPositionSrc : array<vec2<f32>>;
 @group(1) @binding(1) var<storage, read> boidsVelocitySrc : array<vec2<f32>>;
-@group(1) @binding(2) var<storage, read> boidsCellIdSrc : array<vec2<u32>>;
+@group(1) @binding(2) var<storage, read> boidsCellIdSrc : array<u32>;
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
@@ -46,7 +46,7 @@ fn vs_main(
     let centered_boid = boid_position * 2.0 - 1.0;
 
     out.clip_position = vec4<f32>(pos.x + centered_boid.x, pos.y + centered_boid.y, 0.0, 1.0);
-    // let color_factor = cell_factor(boid_cell_id.x, simulationParameters.grid_size);
+    // let color_factor = cell_factor(boid_cell_id, simulationParameters.grid_size);
     let color_factor = f32(instance_index) / f32(simulationParameters.boids_count);
     out.color = palette(color_factor, vec3<f32>(0.2,0.2,0.2),vec3<f32>(0.8,0.8,0.8),vec3<f32>(1.0,1.0,1.0),vec3<f32>(0.0,0.33,0.67));
     return out;

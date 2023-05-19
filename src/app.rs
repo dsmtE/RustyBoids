@@ -19,7 +19,7 @@ use crate::{simulation::SimulationParametersUniformBufferContent, utils::setup_u
 pub type BoidSortingId = u32;
 pub type BoidsPosition = nalgebra_glm::Vec2;
 pub type BoidsVelocity = nalgebra_glm::Vec2;
-pub type BoidsCellId = nalgebra_glm::UVec2;
+pub type BoidsCellId = u32;
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, Default)]
@@ -662,7 +662,7 @@ impl RustyBoids {
         // count boids per cell
         boids_per_cell_count_slice.fill(0);
         self.cell_id_staging_buffer.iter().for_each(|boid_cell_id| {
-            boids_per_cell_count_slice[boid_cell_id.x as usize] += 1;
+            boids_per_cell_count_slice[*boid_cell_id as usize] += 1;
         });
 
         // partial sum of boids per cell
@@ -674,7 +674,7 @@ impl RustyBoids {
         self.sorting_id_staging_buffer.clear();
         let sorting_id_values_slice = self.sorting_id_staging_buffer.values_as_slice_mut();
         for i in 0..boid_count_usize {
-            let boid_cell_id = self.cell_id_staging_buffer[i].x;
+            let boid_cell_id = self.cell_id_staging_buffer[i];
             let boid_target_index = boids_per_cell_count_slice[boid_cell_id as usize]-1;
             boids_per_cell_count_slice[boid_cell_id as usize] -= 1;
             sorting_id_values_slice[boid_target_index as usize] = i as BoidSortingId;

@@ -20,11 +20,11 @@ struct FlockingParameters {
 
 @group(1) @binding(0) var<storage, read> boidsPositionSrc : array<vec2<f32>>;
 @group(1) @binding(1) var<storage, read> boidsVelocitySrc : array<vec2<f32>>;
-@group(1) @binding(2) var<storage, read> boidsCellIdSrc : array<vec2<u32>>;
+@group(1) @binding(2) var<storage, read> boidsCellIdSrc : array<u32>;
 
 @group(1) @binding(3) var<storage, read_write> boidsPositionDst : array<vec2<f32>>;
 @group(1) @binding(4) var<storage, read_write> boidsVelocityDst : array<vec2<f32>>;
-@group(1) @binding(5) var<storage, read_write> boidsCellIdDst : array<vec2<u32>>;
+@group(1) @binding(5) var<storage, read_write> boidsCellIdDst : array<u32>;
 
 // boid_sorting_id
 @group(2) @binding(0) var<storage, read> sorting_id : array<u32>;
@@ -38,7 +38,7 @@ fn cs_main(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
 
   var currentPosition : vec2<f32> = boidsPositionSrc[sorting_id[index]];
   var currentVelocity : vec2<f32> = boidsVelocitySrc[sorting_id[index]];
-  var currentCellId : u32 = boidsCellIdSrc[sorting_id[index]].x;
+  var currentCellId : u32 = boidsCellIdSrc[sorting_id[index]];
 
   // Flocking
   var flockingParameters : FlockingParameters = FlockingParameters(
@@ -88,7 +88,7 @@ fn cs_main(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
   // no mater if we use boid_sorting_id as this will be sorted again
   boidsPositionDst[index] = newPosition;
   boidsVelocityDst[index] = newVelocity;
-  boidsCellIdDst[index].x = position_to_grid_cell_id(newPosition, simulationParameters.grid_size);
+  boidsCellIdDst[index] = position_to_grid_cell_id(newPosition, simulationParameters.grid_size);
 }
 
 fn wrap_arroud(v : vec2<f32>) -> vec2<f32> {
