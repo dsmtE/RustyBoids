@@ -35,14 +35,13 @@ fn main() {
             is_resizable: true,
             title: "Rusty Boids",
             control_flow: oxyde::winit::event_loop::ControlFlow::Poll,
-            ..oxyde::AppConfig::default()
         },
         oxyde::RenderingConfig {
             power_preference: oxyde::wgpu::PowerPreference::HighPerformance,
             // window_surface_present_mode: oxyde::wgpu::PresentMode::Immediate,
             ..oxyde::RenderingConfig {
                 device_features: wgpu_profiler::GpuProfiler::ALL_WGPU_TIMER_FEATURES | oxyde::wgpu::Features::default(),
-                device_limits: oxyde::wgpu::Limits{
+                device_limits: oxyde::wgpu::Limits {
                     max_bind_groups: 6,
                     ..oxyde::wgpu::Limits::default()
                 },

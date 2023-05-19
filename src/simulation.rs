@@ -1,4 +1,4 @@
-use oxyde::egui; 
+use oxyde::egui;
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -28,9 +28,7 @@ impl Default for SimulationParametersUniformBufferContent {
     }
 }
 
-pub fn grid_size_from_view_radius(view_radius: f32) -> u32 {
-    (1.0 / view_radius).ceil() as u32
-}
+pub fn grid_size_from_view_radius(view_radius: f32) -> u32 { (1.0 / view_radius).ceil() as u32 }
 
 impl SimulationParametersUniformBufferContent {
     pub fn display_ui(&mut self, ui: &mut egui::Ui) {
@@ -86,5 +84,4 @@ impl SimulationParametersUniformBufferContent {
             );
         });
     }
-    
 }
