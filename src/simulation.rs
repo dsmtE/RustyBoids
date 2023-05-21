@@ -11,6 +11,8 @@ pub struct SimulationParametersUniformBufferContent {
     pub separation_scale: f32,
     // Grid size is the number of cells per axis
     pub grid_size: u32,
+    pub repulsion_margin: f32,
+    pub repulsion_strength: f32,
 }
 
 impl Default for SimulationParametersUniformBufferContent {
@@ -24,6 +26,8 @@ impl Default for SimulationParametersUniformBufferContent {
             aligment_scale: 0.005,
             separation_scale: 0.05,
             grid_size: grid_size_from_view_radius(view_radius),
+            repulsion_margin: 0.1,
+            repulsion_strength: 0.15,
         }
     }
 }
@@ -81,6 +85,25 @@ impl SimulationParametersUniformBufferContent {
                     self.separation_scale as f64
                 })
                 .prefix("Separation scale"),
+            );
+            ui.add(
+                egui::Slider::from_get_set(0.0..=1.0, |optional_value: Option<f64>| {
+                    if let Some(v) = optional_value {
+                        self.repulsion_margin = v as f32;
+                    }
+                    self.repulsion_margin as f64
+                })
+                .prefix("Repulsion margin"),
+            );
+
+            ui.add(
+                egui::Slider::from_get_set(0.0..=0.5, |optional_value: Option<f64>| {
+                    if let Some(v) = optional_value {
+                        self.repulsion_strength = v as f32;
+                    }
+                    self.repulsion_strength as f64
+                })
+                .prefix("Repulsion strength"),
             );
         });
     }

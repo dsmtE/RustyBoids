@@ -6,6 +6,8 @@ struct SimulationParameters {
   aligment_scale: f32,
   separation_scale: f32,
   grid_size: u32,
+  repulsion_margin: f32,
+  repulsion_strength: f32,
 }
 
 struct FlockingParameters {
@@ -81,7 +83,7 @@ fn cs_main(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
   flockingPostAccumulation(&flockingParameters);
 
   // Update velocity
-  var newVelocity : vec2<f32> = computeNewVelocity(currentPosition, currentVelocity, flockingParameters);
+  var newVelocity : vec2<f32> = computeNewVelocity(currentPosition, currentVelocity, flockingParameters, simulationParameters);
   var newPosition : vec2<f32> = computeNewPosition(currentPosition, newVelocity);
 
   // Write back to storage buffer
@@ -89,15 +91,6 @@ fn cs_main(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
   boidsPositionDst[index] = newPosition;
   boidsVelocityDst[index] = newVelocity;
   boidsCellIdDst[index] = position_to_grid_cell_id(newPosition, simulationParameters.grid_size);
-}
-
-fn wrap_arroud(v : vec2<f32>) -> vec2<f32> {
-  var result : vec2<f32> = v;
-  if (v.x < 0.0) { result.x = 1.0; }
-  if (v.x > 1.0) { result.x = 0.0; }
-  if (v.y < 0.0) { result.y = 1.0; }
-  if (v.y > 1.0) { result.y = 0.0; }
-  return result;
 }
 
 fn position_to_grid_cell_id(position: vec2<f32>, grid_size: u32) -> u32 {
@@ -148,16 +141,20 @@ fn flockingPostAccumulation(
 fn computeNewVelocity(
     currentPosition: vec2<f32>,
     currentVelocity: vec2<f32>,
-    flockingParameters: FlockingParameters
+    flockingParameters: FlockingParameters,
+    simulationParameters: SimulationParameters,
     ) -> vec2<f32> {
     var newVelocity : vec2<f32> = currentVelocity +
         (flockingParameters.avgPosition - currentPosition) * simulationParameters.cohesion_scale +
         flockingParameters.close * simulationParameters.separation_scale +
         flockingParameters.avgVelocity * simulationParameters.aligment_scale;
 
+    newVelocity += edge_repulsion(currentPosition, newVelocity, simulationParameters.repulsion_margin/2.0, simulationParameters.repulsion_strength);
+
     // Clamp velocity for a more pleasing simulation
-    if (length(newVelocity) > 0.1) {
-      newVelocity = normalize(newVelocity) * 0.1;
+    var maxVelocity : f32 = 0.1;
+    if (length(newVelocity) > maxVelocity) {
+      newVelocity = normalize(newVelocity) * maxVelocity;
     }
 
     return newVelocity;
@@ -169,8 +166,36 @@ fn computeNewPosition(
     ) -> vec2<f32> {
     var newPosition : vec2<f32> = currentPosition + currentVelocity * simulationParameters.delta_t;
 
-    // Wrap around boundary
-    newPosition = wrap_arroud(newPosition);
-
     return newPosition;
+}
+
+fn wrap_arroud(v : vec2<f32>) -> vec2<f32> {
+  var result : vec2<f32> = v;
+  if (v.x < 0.0) { result.x = 1.0; }
+  if (v.x > 1.0) { result.x = 0.0; }
+  if (v.y < 0.0) { result.y = 1.0; }
+  if (v.y > 1.0) { result.y = 0.0; }
+  return result;
+}
+
+fn edge_repulsion(
+    currentPosition: vec2<f32>,
+    currentVelocity: vec2<f32>,
+    repulsion_margin: f32,
+    repulsion_strength: f32,
+    ) -> vec2<f32> {
+  var edgeRepulsionForce : vec2<f32> = vec2<f32>(0.0, 0.0);
+  if (currentPosition.x < repulsion_margin) {
+    edgeRepulsionForce.x += (repulsion_margin - currentPosition.x);
+  }else if (currentPosition.x > 1.0 - repulsion_margin) {
+    edgeRepulsionForce.x = ((1.0 - repulsion_margin) - currentPosition.x);
+  }
+
+  if (currentPosition.y < repulsion_margin) {
+    edgeRepulsionForce.y = (repulsion_margin - currentPosition.y);
+  }else if (currentPosition.y > 1.0 - repulsion_margin) {
+    edgeRepulsionForce.y = ((1.0 - repulsion_margin) - currentPosition.y);
+  }
+
+  return repulsion_strength * edgeRepulsionForce;
 }
