@@ -17,7 +17,7 @@ log = "0.4"
 fern = {version = "0.6", features = [ "colored" ] }
 chrono = "0.4"
 rand = "0.8.5"
-wgpu-profiler = "0.11"
+wgpu-profiler = "0.12"
 nalgebra-glm = { version = "0.18", features = [ "convert-bytemuck" ] }
 bytemuck = { version = "1.13", features = [ "derive" ] }
 
