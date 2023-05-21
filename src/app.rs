@@ -65,8 +65,6 @@ pub struct RustyBoids {
 
 impl oxyde::App for RustyBoids {
     fn create(_app_state: &mut AppState) -> Self {
-        let initial_boids_count: u32 = 512;
-
         // buffer for the three 2d triangle vertices of each boid
         let vertex_buffer_data = [-0.01f32, -0.02, 0.01, -0.02, 0.00, 0.02];
         let vertices_buffer = wgpu::util::DeviceExt::create_buffer_init(
@@ -83,12 +81,11 @@ impl oxyde::App for RustyBoids {
 
         let simulation_parameters_uniform_buffer = UniformBufferWrapper::new(
             &_app_state.device,
-            SimulationParametersUniformBufferContent {
-                boids_count: initial_boids_count,
-                ..SimulationParametersUniformBufferContent::default()
-            },
+            SimulationParametersUniformBufferContent::default(),
             wgpu::ShaderStages::all(),
         );
+
+        let initial_boids_count = simulation_parameters_uniform_buffer.content().boids_count;
 
         let cell_id_staging_buffer = StagingBufferWrapper::new(&_app_state.device, initial_boids_count as usize);
 
