@@ -30,6 +30,7 @@ struct GpuSpatialPartitioningStrategy {
 
     cell_id_ping_buffer: wgpu::Buffer,
     cell_id_pong_buffer: wgpu::Buffer,
+    use_spatial_partitioning: bool,
 }
 
 fn create_pipelines(
@@ -404,43 +405,53 @@ impl SimulationStrategy for GpuSpatialPartitioningStrategy {
             });
         }
 
-        wgpu_profiler!("Read cell id", simulation_profiler, &mut compute_encoder, &_app_state.device, {
-            self.cell_id_staging_buffer.encode_read(
-                &mut compute_encoder,
-                if self.ping_pong_state {
-                    &self.cell_id_pong_buffer
-                } else {
-                    &self.cell_id_ping_buffer
-                },
-            );
-        });
-
         _app_state.queue.submit(Some(compute_encoder.finish()));
 
-        // map buffer wait for CPU read
-        self.cell_id_staging_buffer.map_buffer();
-        _app_state.device.poll(wgpu::Maintain::Wait);
-        self.cell_id_staging_buffer.read_and_unmap_buffer();
+        if self.use_spatial_partitioning {
 
-        self.sort_from_cell_id(boids_count);
-
-        let mut copy_encoder: wgpu::CommandEncoder = _app_state
+            let mut read_encoder: wgpu::CommandEncoder = _app_state
             .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("copy sorting Encoder") });
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Read Cell Id encoder") });
 
-        // Copy from staging buffer on GPU side
-        wgpu_profiler!("Write sorting id", simulation_profiler, &mut copy_encoder, &_app_state.device, {
-            self.sorting_id_staging_buffer
-                .encode_write(&_app_state.queue, &mut copy_encoder, &self.sorting_id_buffer);
-        });
+            wgpu_profiler!("Read cell id", simulation_profiler, &mut read_encoder, &_app_state.device, {
+                self.cell_id_staging_buffer.encode_read(
+                    &mut read_encoder,
+                    if self.ping_pong_state {
+                        &self.cell_id_pong_buffer
+                    } else {
+                        &self.cell_id_ping_buffer
+                    },
+                );
+            });
 
-        wgpu_profiler!("Write cell count", simulation_profiler, &mut copy_encoder, &_app_state.device, {
-            self.boids_per_cell_count_staging_buffer
-                .encode_write(&_app_state.queue, &mut copy_encoder, &self.boids_per_cell_count_buffer);
-        });
+            _app_state.queue.submit(Some(read_encoder.finish()));
 
-        // TODO: why there is random crash (wgpu parent device is lost) during copy with specific simulation parameters?
-        _app_state.queue.submit(Some(copy_encoder.finish()));
+            // map buffer wait for CPU read
+            self.cell_id_staging_buffer.map_buffer();
+            _app_state.device.poll(wgpu::Maintain::Wait);
+            self.cell_id_staging_buffer.read_and_unmap_buffer();
+
+            self.sort_from_cell_id(boids_count);
+
+            let mut copy_encoder: wgpu::CommandEncoder = _app_state
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("copy sorting Encoder") });
+
+            // Copy from staging buffer on GPU side
+            wgpu_profiler!("Write sorting id", simulation_profiler, &mut copy_encoder, &_app_state.device, {
+                self.sorting_id_staging_buffer
+                    .encode_write(&_app_state.queue, &mut copy_encoder, &self.sorting_id_buffer);
+            });
+
+            wgpu_profiler!("Write cell count", simulation_profiler, &mut copy_encoder, &_app_state.device, {
+                self.boids_per_cell_count_staging_buffer
+                    .encode_write(&_app_state.queue, &mut copy_encoder, &self.boids_per_cell_count_buffer);
+            });
+
+            // TODO: why there is random crash (wgpu parent device is lost) during copy with specific simulation parameters?
+            _app_state.queue.submit(Some(copy_encoder.finish()));
+
+        }
 
         let mut display_encoder: wgpu::CommandEncoder = _app_state
             .device
@@ -488,6 +499,7 @@ pub fn create_gpu_spatial_partitioning_strategy (
     config: &wgpu::SurfaceConfiguration,
     init_parameters_uniform_buffer: &UniformBufferWrapper<InitParametersUniformBufferContent>,
     simulation_parameters_uniform_buffer: &UniformBufferWrapper<SimulationParametersUniformBufferContent>,
+    use_spatial_partitioning: bool,
 ) -> Box<dyn SimulationStrategy> {
     
     let initial_boids_count = simulation_parameters_uniform_buffer.content().boids_count;
@@ -565,10 +577,12 @@ pub fn create_gpu_spatial_partitioning_strategy (
     let boids_per_cell_count_bind_group = binding_builder::BindGroupBuilder::new(&boids_per_cell_count_bind_group_layout_with_desc)
         .resource(boids_per_cell_count_buffer.as_entire_binding())
         .create(device, Some("boids_per_cell_count_bind_group"));
+    
+    let compute_shader_source = if use_spatial_partitioning { include_str!("../../shaders/computeGrid.wgsl") } else { include_str!("../../shaders/computeNative.wgsl") };
 
     let compute_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("Compute Shader"),
-        source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/computeGrid.wgsl").into()),
+        source: wgpu::ShaderSource::Wgsl(compute_shader_source.into()),
     });
 
     let init_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -613,5 +627,6 @@ pub fn create_gpu_spatial_partitioning_strategy (
         pong_bind_group,
         cell_id_ping_buffer,
         cell_id_pong_buffer,
+        use_spatial_partitioning,
     })
 }

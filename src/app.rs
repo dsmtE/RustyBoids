@@ -56,7 +56,9 @@ impl oxyde::App for RustyBoids {
             &_app_state.device,
             &_app_state.config,
             &init_parameters_uniform_buffer,
-            &simulation_parameters_uniform_buffer);
+            &simulation_parameters_uniform_buffer,
+            false,
+        );
 
         let simulation_profiler = GpuProfiler::new(GpuProfilerSettings::default()).unwrap();
 
@@ -107,7 +109,6 @@ impl oxyde::App for RustyBoids {
     }
 
     fn render(&mut self, _app_state: &mut AppState, _output_view: &wgpu::TextureView) -> Result<(), wgpu::SurfaceError> {
-        let boids_count = self.boids_count();
         self.simulation_strategy.render(
             _app_state,
             _output_view,
@@ -125,9 +126,4 @@ impl oxyde::App for RustyBoids {
 
         Ok(())
     }
-}
-
-
-impl RustyBoids {
-    pub fn boids_count(&self) -> u32 { self.simulation_parameters_uniform_buffer.content().boids_count }
 }
