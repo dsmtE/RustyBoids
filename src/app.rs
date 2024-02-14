@@ -45,11 +45,7 @@ pub struct RustyBoids {
     init_parameters_uniform_buffer: UniformBufferWrapper<InitParametersUniformBufferContent>,
     simulation_parameters_uniform_buffer: UniformBufferWrapper<SimulationParametersUniformBufferContent>,
 
-    position_ping_buffer: wgpu::Buffer,
-    velocity_ping_buffer: wgpu::Buffer,
     cell_id_ping_buffer: wgpu::Buffer,
-    position_pong_buffer: wgpu::Buffer,
-    velocity_pong_buffer: wgpu::Buffer,
     cell_id_pong_buffer: wgpu::Buffer,
 
     cell_id_staging_buffer: StagingBufferWrapper<BoidsCellId, true>,
@@ -90,11 +86,11 @@ impl oxyde::App for RustyBoids {
         let cell_id_staging_buffer = StagingBufferWrapper::new(&_app_state.device, initial_boids_count as usize);
 
         let (
-            position_ping_buffer,
-            velocity_ping_buffer,
+            _,
+            _,
             cell_id_ping_buffer,
-            position_pong_buffer,
-            velocity_pong_buffer,
+            _,
+            _,
             cell_id_pong_buffer,
             ping_pong_bind_group_layout_builder_descriptor,
             ping_pong_bind_group,
@@ -213,11 +209,7 @@ impl oxyde::App for RustyBoids {
             init_parameters_uniform_buffer,
             simulation_parameters_uniform_buffer,
 
-            position_ping_buffer,
-            velocity_ping_buffer,
             cell_id_ping_buffer,
-            position_pong_buffer,
-            velocity_pong_buffer,
             cell_id_pong_buffer,
 
             cell_id_staging_buffer,
@@ -362,7 +354,7 @@ impl oxyde::App for RustyBoids {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Boids Display Encoder") });
 
         wgpu_profiler!("Render Boids", self.simulation_profiler, &mut display_encoder, &_app_state.device, {
-            let mut screen_render_pass = &mut display_encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            let screen_render_pass = &mut display_encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: _output_view,
