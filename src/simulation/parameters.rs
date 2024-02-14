@@ -1,6 +1,12 @@
 use oxyde::egui;
 
 #[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, Default)]
+pub struct InitParametersUniformBufferContent {
+    pub seed: u32,
+}
+
+#[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct SimulationParametersUniformBufferContent {
     pub boids_count: u32,
