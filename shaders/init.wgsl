@@ -25,9 +25,9 @@ struct SimulationParameters {
 
 // from iq https://www.shadertoy.com/view/llGSzw
 fn hash1(n: u32) -> f32 {
-	var n = (n << 13u) ^ n;
-  n = n * (n * n * 15731u + 789221u) + 1376312589u;
-  return f32(n & u32(0x7fffffffu))/f32(0x7fffffff);
+	var m = (n << 13u) ^ n;
+  m = m * (m * m * 15731u + 789221u) + 1376312589u;
+  return f32(m & u32(0x7fffffffu))/f32(0x7fffffff);
 }
 
 fn position_to_grid_cell_id(position: vec2<f32>, grid_size: u32) -> u32 {

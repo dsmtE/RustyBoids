@@ -8,7 +8,7 @@ use oxyde::{
     winit,
     AppState,
 };
-use wgpu_profiler::{wgpu_profiler, GpuProfiler};
+use wgpu_profiler::{wgpu_profiler, GpuProfiler, GpuProfilerSettings};
 
 use crate::{simulation::SimulationParametersUniformBufferContent, utils::setup_ui_profiler};
 
@@ -187,8 +187,7 @@ impl oxyde::App for RustyBoids {
             simulation_parameters_uniform_buffer.layout(),
         );
 
-        let simulation_profiler = GpuProfiler::new(4, _app_state.queue.get_timestamp_period(), _app_state.device.features());
-
+        let simulation_profiler = GpuProfiler::new(GpuProfilerSettings::default()).unwrap();
         Self {
             init_pipeline,
             render_pipeline,
@@ -226,7 +225,7 @@ impl oxyde::App for RustyBoids {
 
     fn handle_event(&mut self, _app_state: &mut AppState, _event: &winit::event::Event<()>) -> Result<()> { Ok(()) }
 
-    fn render_gui(&mut self, _ctx: &egui::Context) -> Result<()> {
+    fn render_gui(&mut self, _app_state: &mut AppState, _ctx: &egui::Context) -> Result<()> {
         egui::SidePanel::right("right panel").resizable(true).show(_ctx, |ui| {
             self.simulation_parameters_uniform_buffer.content_mut().display_ui(ui);
 
@@ -241,7 +240,7 @@ impl oxyde::App for RustyBoids {
                 }
             });
 
-            if let Some(latest_profiler_results) = self.simulation_profiler.process_finished_frame() {
+            if let Some(latest_profiler_results) = self.simulation_profiler.process_finished_frame(_app_state.queue.get_timestamp_period()) {
                 egui::CollapsingHeader::new("Wgpu Profiler")
                     .default_open(true)
                     .show(ui, |ui| setup_ui_profiler(ui, &latest_profiler_results, 1));
@@ -269,7 +268,7 @@ impl oxyde::App for RustyBoids {
 
         if self.need_init {
             wgpu_profiler!("Init Boids", self.simulation_profiler, &mut compute_encoder, &_app_state.device, {
-                let compute_pass = &mut compute_encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("Compute Pass") });
+                let compute_pass = &mut compute_encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("Compute Pass"), timestamp_writes: None });
 
                 compute_pass.set_pipeline(&self.init_pipeline);
                 compute_pass.set_bind_group(0, self.init_parameters_uniform_buffer.bind_group(), &[]);
@@ -292,7 +291,7 @@ impl oxyde::App for RustyBoids {
             self.ping_pong_state = !self.ping_pong_state;
 
             wgpu_profiler!("Compute Boids", self.simulation_profiler, &mut compute_encoder, &_app_state.device, {
-                let mut compute_pass = compute_encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("Compute Pass") });
+                let mut compute_pass = compute_encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("Compute Pass"), timestamp_writes: None });
 
                 compute_pass.set_pipeline(&self.compute_pipeline);
                 compute_pass.set_bind_group(0, self.simulation_parameters_uniform_buffer.bind_group(), &[]);
@@ -359,9 +358,10 @@ impl oxyde::App for RustyBoids {
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: _output_view,
                     resolve_target: None,
-                    ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: true },
+                    ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store },
                 })],
                 depth_stencil_attachment: None,
+                ..Default::default()
             });
             oxyde::fit_viewport_to_gui_available_rect(screen_render_pass, _app_state);
 
