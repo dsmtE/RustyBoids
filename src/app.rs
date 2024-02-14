@@ -10,12 +10,13 @@ use oxyde::{
 };
 use wgpu_profiler::{wgpu_profiler, GpuProfiler, GpuProfilerSettings};
 
-use crate::{simulation::SimulationParametersUniformBufferContent, utils::setup_ui_profiler};
-
-pub type BoidSortingId = u32;
-pub type BoidsPosition = nalgebra_glm::Vec2;
-pub type BoidsVelocity = nalgebra_glm::Vec2;
-pub type BoidsCellId = u32;
+use crate::{
+    simulation::{
+        SimulationParametersUniformBufferContent,
+        types::{BoidSortingId, BoidsCellId, BoidsPosition, BoidsVelocity},
+}   ,
+    utils::setup_ui_profiler
+};
 
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, Default)]
