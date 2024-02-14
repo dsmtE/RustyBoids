@@ -6,7 +6,7 @@ pub fn setup_ui_profiler(ui: &mut egui::Ui, profiling_data: &[wgpu_profiler::Gpu
         if scope.nested_scopes.is_empty() {
             ui.horizontal(|ui| {
                 ui.label(&scope.label);
-                ui.with_layout(egui::Layout::default().with_cross_align(egui::Align::Max), |ui| {
+                ui.with_layout(egui::Layout::default().with_cross_align(egui::Align::Min), |ui| {
                     ui.label(time);
                 });
             });
