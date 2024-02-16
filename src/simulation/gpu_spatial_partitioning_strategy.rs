@@ -4,8 +4,6 @@ use super::{
     parameters::InitParametersUniformBufferContent, types::*, SimulationParametersUniformBufferContent, SimulationStrategy
 };
 
-use wgpu_profiler::wgpu_profiler;
-
 const WORKGROUP_SIZE: u32 = 64;
 
 struct GpuSpatialPartitioningStrategy {
@@ -360,10 +358,9 @@ impl SimulationStrategy for GpuSpatialPartitioningStrategy {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Compute Boids Encoder") });
 
         if *need_init {
-            
-            wgpu_profiler!("Init Boids", simulation_profiler, &mut compute_encoder, &_app_state.device, {
-
-                let compute_pass = &mut compute_encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("Compute Pass"), timestamp_writes: None });
+            {
+                let mut scope = simulation_profiler.scope("Init Boids", &mut compute_encoder, &_app_state.device);
+                let compute_pass = &mut scope.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("Compute Pass"), timestamp_writes: None });
 
                 compute_pass.set_pipeline(&self.init_pipeline);
                 compute_pass.set_bind_group(0, init_parameters_uniform_buffer.bind_group(), &[]);
@@ -378,15 +375,16 @@ impl SimulationStrategy for GpuSpatialPartitioningStrategy {
                     &[],
                 );
                 compute_pass.dispatch_workgroups(dispatch_group_count, 1, 1);
-            });
+            }
 
             *need_init = false;
         } else {
             // explicit swap ping pong buffers
             self.ping_pong_state = !self.ping_pong_state;
 
-            wgpu_profiler!("Compute Boids", simulation_profiler, &mut compute_encoder, &_app_state.device, {
-                let mut compute_pass = compute_encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("Compute Pass"), timestamp_writes: None });
+            {
+                let mut scope = simulation_profiler.scope("Compute Boids", &mut compute_encoder, &_app_state.device);
+                let mut compute_pass = scope.begin_compute_pass(&wgpu::ComputePassDescriptor { label: Some("Compute Pass"), timestamp_writes: None });
 
                 compute_pass.set_pipeline(&self.compute_pipeline);
                 compute_pass.set_bind_group(0, simulation_parameters_uniform_buffer.bind_group(), &[]);
@@ -402,7 +400,7 @@ impl SimulationStrategy for GpuSpatialPartitioningStrategy {
                 compute_pass.set_bind_group(2, &self.sorting_id_bind_group, &[]);
                 compute_pass.set_bind_group(3, &self.boids_per_cell_count_bind_group, &[]);
                 compute_pass.dispatch_workgroups(dispatch_group_count, 1, 1);
-            });
+            }
         }
 
         _app_state.queue.submit(Some(compute_encoder.finish()));
@@ -413,16 +411,17 @@ impl SimulationStrategy for GpuSpatialPartitioningStrategy {
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Read Cell Id encoder") });
 
-            wgpu_profiler!("Read cell id", simulation_profiler, &mut read_encoder, &_app_state.device, {
+            {
+                let mut scope = simulation_profiler.scope("Read cell id", &mut read_encoder, &_app_state.device);
                 self.cell_id_staging_buffer.encode_read(
-                    &mut read_encoder,
+                    &mut scope,
                     if self.ping_pong_state {
                         &self.cell_id_pong_buffer
                     } else {
                         &self.cell_id_ping_buffer
                     },
                 );
-            });
+            }
 
             _app_state.queue.submit(Some(read_encoder.finish()));
 
@@ -438,15 +437,15 @@ impl SimulationStrategy for GpuSpatialPartitioningStrategy {
                 .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("copy sorting Encoder") });
 
             // Copy from staging buffer on GPU side
-            wgpu_profiler!("Write sorting id", simulation_profiler, &mut copy_encoder, &_app_state.device, {
-                self.sorting_id_staging_buffer
-                    .encode_write(&_app_state.queue, &mut copy_encoder, &self.sorting_id_buffer);
-            });
+            {
+                let mut scope = simulation_profiler.scope("Write sorting id", &mut copy_encoder, &_app_state.device);
+                self.sorting_id_staging_buffer.encode_write(&_app_state.queue, &mut scope, &self.sorting_id_buffer);
+            }
 
-            wgpu_profiler!("Write cell count", simulation_profiler, &mut copy_encoder, &_app_state.device, {
-                self.boids_per_cell_count_staging_buffer
-                    .encode_write(&_app_state.queue, &mut copy_encoder, &self.boids_per_cell_count_buffer);
-            });
+            {   
+                let mut scope = simulation_profiler.scope("Write cell count", &mut copy_encoder, &_app_state.device);
+                self.boids_per_cell_count_staging_buffer.encode_write(&_app_state.queue, &mut scope, &self.boids_per_cell_count_buffer);
+            }
 
             // TODO: why there is random crash (wgpu parent device is lost) during copy with specific simulation parameters?
             _app_state.queue.submit(Some(copy_encoder.finish()));
@@ -457,8 +456,9 @@ impl SimulationStrategy for GpuSpatialPartitioningStrategy {
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("Boids Display Encoder") });
 
-        wgpu_profiler!("Render Boids", simulation_profiler, &mut display_encoder, &_app_state.device, {
-            let screen_render_pass = &mut display_encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        {
+            let mut scope = simulation_profiler.scope("Render Boids", &mut display_encoder, &_app_state.device);
+            let screen_render_pass = &mut scope.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: _output_view,
@@ -484,7 +484,7 @@ impl SimulationStrategy for GpuSpatialPartitioningStrategy {
                 &[],
             );
             screen_render_pass.draw(0..3, 0..boids_count);
-        });
+        }
 
         // Why only one resolve_queries on the last encoder works ?
         simulation_profiler.resolve_queries(&mut display_encoder);

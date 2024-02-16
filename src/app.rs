@@ -3,8 +3,8 @@ use oxyde::{
     egui,
     wgpu,
     wgpu_utils::uniform_buffer::UniformBufferWrapper,
-    winit,
     AppState,
+    winit::event::Event,
 };
 use wgpu_profiler::{GpuProfiler, GpuProfilerSettings};
 
@@ -12,9 +12,8 @@ use crate::{
     simulation::{
         gpu_spatial_partitioning_strategy::create_gpu_spatial_partitioning_strategy, parameters::InitParametersUniformBufferContent, SimulationParametersUniformBufferContent, SimulationStrategy
 }   ,
-    utils::setup_ui_profiler
+    utils::setup_ui_profiler,
 };
-
 
 pub struct RustyBoids {
     pub simulation_profiler: GpuProfiler,
@@ -72,10 +71,10 @@ impl oxyde::App for RustyBoids {
         }
     }
 
-    fn handle_event(&mut self, _app_state: &mut AppState, _event: &winit::event::Event<()>) -> Result<()> { Ok(()) }
+    fn handle_event<T: 'static>(&mut self, _app_state: &mut AppState, _event: &Event<T>) -> Result<()> { Ok(()) }
 
-    fn render_gui(&mut self, _app_state: &mut AppState, _ctx: &egui::Context) -> Result<()> {
-        egui::SidePanel::right("right panel").resizable(true).show(_ctx, |ui| {
+    fn render_gui(&mut self, _app_state: &mut AppState) -> Result<()> {
+        egui::SidePanel::right("right panel").resizable(true).show(_app_state.egui_renderer.context(), |ui| {
             self.simulation_parameters_uniform_buffer.content_mut().display_ui(ui);
 
             egui::CollapsingHeader::new("Init settings").default_open(true).show(ui, |ui| {
@@ -108,7 +107,7 @@ impl oxyde::App for RustyBoids {
         Ok(())
     }
 
-    fn render(&mut self, _app_state: &mut AppState, _output_view: &wgpu::TextureView) -> Result<(), wgpu::SurfaceError> {
+    fn render(&mut self, _app_state: &mut AppState, _output_view: &wgpu::TextureView) -> Result<()> {
         self.simulation_strategy.render(
             _app_state,
             _output_view,
