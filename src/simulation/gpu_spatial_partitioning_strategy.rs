@@ -1,4 +1,4 @@
-use oxyde::{wgpu, wgpu_utils::{binding_builder, buffers::StagingBufferWrapper, uniform_buffer::UniformBufferWrapper}};
+use oxyde::{wgpu, wgpu_utils::{binding_builder, buffers::StagingBufferWrapper, uniform_buffer::UniformBufferWrapper, wgsl_preprocessor::WGSLShaderBuilder}};
 
 use super::{
     parameters::InitParametersUniformBufferContent, types::*, SimulationParametersUniformBufferContent, SimulationStrategy
@@ -579,12 +579,17 @@ pub fn create_gpu_spatial_partitioning_strategy (
         .create(device, Some("boids_per_cell_count_bind_group"));
     
     let compute_shader_source = if use_spatial_partitioning { include_str!("../../shaders/computeGrid.wgsl") } else { include_str!("../../shaders/computeNative.wgsl") };
+    
+    let source = WGSLShaderBuilder::new(compute_shader_source.to_string())
+        .add_include_from_folder("shaders")
+        .build()
+        .unwrap();
 
     let compute_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("Compute Shader"),
-        source: wgpu::ShaderSource::Wgsl(compute_shader_source.into()),
+        source,
     });
-
+    
     let init_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("Init Shader"),
         source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/init.wgsl").into()),
