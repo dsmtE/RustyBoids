@@ -9,31 +9,33 @@ pub struct InitParametersUniformBufferContent {
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct SimulationParametersUniformBufferContent {
-    pub boids_count: u32,
-    pub delta_t: f32,
     pub view_radius: f32,
+    //  The separation radius is the view radius times this factor
+    pub separation_radius_factor: f32,
     pub cohesion_scale: f32,
     pub aligment_scale: f32,
     pub separation_scale: f32,
     // Grid size is the number of cells per axis
-    pub grid_size: u32,
     pub repulsion_margin: f32,
     pub repulsion_strength: f32,
+    // to move in an other buffer as they are only used for the grid optimization
+    pub boids_count: u32,
+    pub grid_size: u32,
 }
 
 impl Default for SimulationParametersUniformBufferContent {
     fn default() -> Self {
-        let view_radius = 0.1;
+        let view_radius = 0.02;
         Self {
-            boids_count: 256,
-            delta_t: 0.03,
             view_radius,
-            cohesion_scale: 0.02,
-            aligment_scale: 0.005,
-            separation_scale: 0.05,
-            grid_size: grid_size_from_view_radius(view_radius),
+            separation_radius_factor: 0.25,
+            cohesion_scale: 0.01,
+            aligment_scale: 0.025,
+            separation_scale: 0.012,
             repulsion_margin: 0.1,
-            repulsion_strength: 0.15,
+            repulsion_strength: 0.005,
+            boids_count: 2048,
+            grid_size: grid_size_from_view_radius(view_radius),
         }
     }
 }
@@ -44,13 +46,13 @@ impl SimulationParametersUniformBufferContent {
     pub fn display_ui(&mut self, ui: &mut egui::Ui) {
         egui::CollapsingHeader::new("Simulation settings").default_open(true).show(ui, |ui| {
             ui.add(
-                egui::Slider::from_get_set(0.0..=0.1, |optional_value: Option<f64>| {
+                egui::Slider::from_get_set(0.0..=1.0, |optional_value: Option<f64>| {
                     if let Some(v) = optional_value {
-                        self.delta_t = v as f32;
+                        self.separation_radius_factor = v as f32;
                     }
-                    self.delta_t as f64
+                    self.separation_radius_factor as f64
                 })
-                .prefix("Delta t"),
+                .prefix("separation radius factor"),
             );
 
             ui.add(

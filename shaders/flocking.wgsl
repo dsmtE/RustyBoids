@@ -14,23 +14,34 @@ fn flockingInit() -> FlockingParameters {
     );
 }
 
-
 fn flockingAccumulate(
     currentPosition: vec2<f32>,
     currentVelocity: vec2<f32>,
     otherPosition: vec2<f32>,
     otherVelocity: vec2<f32>,
-    flockingParameters: ptr<function, FlockingParameters>
+    flockingParameters: ptr<function, FlockingParameters>,
     ) {
-    let distance = distance(otherPosition, currentPosition);
+
+    let otherToCurrent = currentPosition - otherPosition;
+
+    let sqrt_distance = dot(otherToCurrent, otherToCurrent);
+    let sqrt_view_radius = simulationParameters.view_radius * simulationParameters.view_radius;
 
     // Skip if too far away
-    if (distance > simulationParameters.view_radius) {
+    if (sqrt_distance > sqrt_view_radius) {
+        return;
+    }
+
+    // Visiblity angle
+    if (dot(normalize(-otherToCurrent), normalize(currentVelocity)) < -0.5) {
         return;
     }
     
     // Separation
-    (*flockingParameters).close = (*flockingParameters).close + (currentPosition - otherPosition);
+    if (sqrt_distance <= sqrt_view_radius * simulationParameters.separation_radius_factor * simulationParameters.separation_radius_factor) {
+        let separation_distance = simulationParameters.view_radius * simulationParameters.separation_radius_factor;
+        (*flockingParameters).close = (*flockingParameters).close + otherToCurrent / sqrt_distance * separation_distance;
+    }
 
     // Aligment
     (*flockingParameters).avgVelocity = (*flockingParameters).avgVelocity + otherVelocity;
@@ -45,9 +56,9 @@ fn flockingPostAccumulation(
     flockingParameters: ptr<function, FlockingParameters>
     ) {
     if ((*flockingParameters).neighborCount > 0u) {
-        let f32NeighborCount = f32((*flockingParameters).neighborCount);
-        (*flockingParameters).avgPosition = (*flockingParameters).avgPosition / f32NeighborCount;
-        (*flockingParameters).avgVelocity = (*flockingParameters).avgVelocity / f32NeighborCount;
+        var f32_neighborCount = f32((*flockingParameters).neighborCount);
+        (*flockingParameters).avgPosition = (*flockingParameters).avgPosition / f32_neighborCount;
+        (*flockingParameters).avgVelocity = (*flockingParameters).avgVelocity / f32_neighborCount;
     }
 }
 
@@ -55,30 +66,37 @@ fn computeNewVelocity(
     currentPosition: vec2<f32>,
     currentVelocity: vec2<f32>,
     flockingParameters: FlockingParameters,
-    simulationParameters: SimulationParameters,
     ) -> vec2<f32> {
-    var newVelocity : vec2<f32> = currentVelocity +
-        (flockingParameters.avgPosition - currentPosition) * simulationParameters.cohesion_scale +
-        flockingParameters.close * simulationParameters.separation_scale +
-        flockingParameters.avgVelocity * simulationParameters.aligment_scale;
 
-    newVelocity += edge_repulsion(currentPosition, newVelocity, simulationParameters.repulsion_margin/2.0, simulationParameters.repulsion_strength);
+    var acceleration : vec2<f32> = vec2<f32>(0.0, 0.0);
+
+    // Todo: make this a parameter
+    var maxVelocity : f32 = 0.08;
+
+    if (flockingParameters.neighborCount > 0u) {
+        // acceleration += (flockingParameters.avgVelocity - currentVelocity) * simulationParameters.aligment_scale;
+        acceleration += (normalize(flockingParameters.avgVelocity) - normalize(currentVelocity)) * simulationParameters.aligment_scale;
+        acceleration += (flockingParameters.avgPosition - currentPosition) * simulationParameters.cohesion_scale;
+        acceleration += flockingParameters.close * simulationParameters.separation_scale;
+        acceleration *= maxVelocity;
+    }
+
+    acceleration += edge_repulsion(currentPosition, currentVelocity, simulationParameters.repulsion_margin/2.0, simulationParameters.repulsion_strength);
+    
+    var newVelocity : vec2<f32> = currentVelocity + acceleration;
 
     // Clamp velocity for a more pleasing simulation
-    var maxVelocity : f32 = 0.1;
-    if (length(newVelocity) > maxVelocity) {
-      newVelocity = normalize(newVelocity) * maxVelocity;
-    }
+    newVelocity = clamp_to_max(newVelocity, maxVelocity);
 
     return newVelocity;
 }
 
 fn computeNewPosition(
     currentPosition: vec2<f32>,
-    currentVelocity: vec2<f32>
+    currentVelocity: vec2<f32>,
     ) -> vec2<f32> {
-    var newPosition : vec2<f32> = currentPosition + currentVelocity * simulationParameters.delta_t;
-
+    var newPosition : vec2<f32> = currentPosition + currentVelocity;
+    // return wrap_arroud(newPosition);
     return newPosition;
 }
 
@@ -110,5 +128,15 @@ fn edge_repulsion(
         edgeRepulsionForce.y = ((1.0 - repulsion_margin) - currentPosition.y);
     }
 
+
+
   return repulsion_strength * edgeRepulsionForce;
+}
+
+fn clamp_to_max(v: vec2<f32>, max_magnitude: f32) -> vec2<f32> {
+    var magnitude = length(v);
+    if (magnitude > max_magnitude) {
+        return v / magnitude * max_magnitude;
+    }
+    return v;
 }

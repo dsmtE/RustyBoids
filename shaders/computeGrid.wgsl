@@ -1,13 +1,13 @@
 struct SimulationParameters {
-  boids_count: u32,
-  delta_t: f32,
   view_radius: f32,
+  separation_radius_factor: f32,
   cohesion_scale: f32,
   aligment_scale: f32,
   separation_scale: f32,
-  grid_size: u32,
   repulsion_margin: f32,
   repulsion_strength: f32,
+  boids_count: u32,
+  grid_size: u32,
 }
 
 @group(0) @binding(0) var<uniform> simulationParameters : SimulationParameters;

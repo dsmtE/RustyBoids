@@ -45,6 +45,6 @@ fn cs_main(@builtin(global_invocation_id) GlobalInvocationID : vec3<u32>) {
 
   // Init boid with random velocity and position
   boidsPositionDst[index] = vec2<f32>(hash1(alterated_index), hash1(alterated_index + 1u));
-  boidsVelocityDst[index] = normalize(vec2<f32>(hash1(alterated_index + 2u), hash1(alterated_index + 3u)) * 2.0 - 1.0)* 0.01;
+  boidsVelocityDst[index] = normalize(vec2<f32>(hash1(alterated_index + 2u), hash1(alterated_index + 3u)) * 2.0 - 1.0)* 0.002;
   boidsCellIdDst[index] = position_to_grid_cell_id(boidsPositionDst[index], simulationParameters.grid_size);
 }
