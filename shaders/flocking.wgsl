@@ -1,9 +1,12 @@
 struct FlockingParameters {
     avgPosition: vec2<f32>,
-    close: vec2<f32>,
+    avoidance: vec2<f32>,
     avgVelocity: vec2<f32>,
     neighborCount: u32,
 }
+
+// detla time
+const detlaTime: f32 = 0.0166;
 
 fn flockingInit() -> FlockingParameters {
     return FlockingParameters(
@@ -22,34 +25,28 @@ fn flockingAccumulate(
     flockingParameters: ptr<function, FlockingParameters>,
     ) {
 
-    let otherToCurrent = currentPosition - otherPosition;
+    let current_to_other = otherPosition - currentPosition;
+    let sqrt_distance = dot(current_to_other, current_to_other);
 
-    let sqrt_distance = dot(otherToCurrent, otherToCurrent);
-    let sqrt_view_radius = simulationParameters.view_radius * simulationParameters.view_radius;
-
+    let sqrt_view_radius = simulationParameters.view_radius * simulationParameters.view_radius;    
     // Skip if too far away
     if (sqrt_distance > sqrt_view_radius) {
         return;
     }
 
     // Visiblity angle
-    if (dot(normalize(-otherToCurrent), normalize(currentVelocity)) < -0.5) {
+    if (dot(normalize(current_to_other), normalize(currentVelocity)) < -0.5) {
         return;
     }
     
     // Separation
-    if (sqrt_distance <= sqrt_view_radius * simulationParameters.separation_radius_factor * simulationParameters.separation_radius_factor) {
-        let separation_distance = simulationParameters.view_radius * simulationParameters.separation_radius_factor;
-        (*flockingParameters).close = (*flockingParameters).close + otherToCurrent / sqrt_distance * separation_distance;
+    if (sqrt_distance < sqrt_view_radius * simulationParameters.separation_radius_factor * simulationParameters.separation_radius_factor) {
+        (*flockingParameters).avoidance -= current_to_other / sqrt_distance;
     }
 
-    // Aligment
-    (*flockingParameters).avgVelocity = (*flockingParameters).avgVelocity + otherVelocity;
-
-    // Cohesion
-    (*flockingParameters).avgPosition = (*flockingParameters).avgPosition + otherPosition;
-
-    (*flockingParameters).neighborCount = (*flockingParameters).neighborCount + 1u;
+    (*flockingParameters).avgVelocity += otherVelocity; // Aligment
+    (*flockingParameters).avgPosition += otherPosition; // Cohesion
+    (*flockingParameters).neighborCount += 1u;
 }
 
 fn flockingPostAccumulation(
@@ -57,8 +54,8 @@ fn flockingPostAccumulation(
     ) {
     if ((*flockingParameters).neighborCount > 0u) {
         var f32_neighborCount = f32((*flockingParameters).neighborCount);
-        (*flockingParameters).avgPosition = (*flockingParameters).avgPosition / f32_neighborCount;
-        (*flockingParameters).avgVelocity = (*flockingParameters).avgVelocity / f32_neighborCount;
+        (*flockingParameters).avgPosition /= f32_neighborCount;
+        (*flockingParameters).avgVelocity /= f32_neighborCount;
     }
 }
 
@@ -71,33 +68,29 @@ fn computeNewVelocity(
     var acceleration : vec2<f32> = vec2<f32>(0.0, 0.0);
 
     // Todo: make this a parameter
-    var maxVelocity : f32 = 0.08;
+    var max_speed : f32 = 0.1;
+    var max_steering_strength : f32 = max_speed * 2.0;
 
     if (flockingParameters.neighborCount > 0u) {
-        // acceleration += (flockingParameters.avgVelocity - currentVelocity) * simulationParameters.aligment_scale;
-        acceleration += (normalize(flockingParameters.avgVelocity) - normalize(currentVelocity)) * simulationParameters.aligment_scale;
-        acceleration += (flockingParameters.avgPosition - currentPosition) * simulationParameters.cohesion_scale;
-        acceleration += flockingParameters.close * simulationParameters.separation_scale;
-        acceleration *= maxVelocity;
+        acceleration += steer_towards_target(flockingParameters.avgVelocity, currentVelocity, max_speed, max_steering_strength) * simulationParameters.aligment_scale;
+        acceleration += steer_towards_target(flockingParameters.avgPosition - currentPosition, currentVelocity, max_speed, max_steering_strength) * simulationParameters.cohesion_scale;
+
+        // Avoid normalizing zero vector
+        if flockingParameters.avoidance.x != 0.0 || flockingParameters.avoidance.y != 0.0 {
+            acceleration += steer_towards_target(flockingParameters.avoidance, currentVelocity, max_speed, max_steering_strength) * simulationParameters.separation_scale;
+        }
     }
 
     acceleration += edge_repulsion(currentPosition, currentVelocity, simulationParameters.repulsion_margin/2.0, simulationParameters.repulsion_strength);
     
-    var newVelocity : vec2<f32> = currentVelocity + acceleration;
-
-    // Clamp velocity for a more pleasing simulation
-    newVelocity = clamp_to_max(newVelocity, maxVelocity);
-
-    return newVelocity;
+    return clamp_to_max(currentVelocity + acceleration * detlaTime, max_speed);
 }
 
 fn computeNewPosition(
     currentPosition: vec2<f32>,
     currentVelocity: vec2<f32>,
     ) -> vec2<f32> {
-    var newPosition : vec2<f32> = currentPosition + currentVelocity;
-    // return wrap_arroud(newPosition);
-    return newPosition;
+    return currentPosition + currentVelocity * detlaTime;
 }
 
 fn wrap_arroud(v : vec2<f32>) -> vec2<f32> {
@@ -140,3 +133,12 @@ fn clamp_to_max(v: vec2<f32>, max_magnitude: f32) -> vec2<f32> {
     }
     return v;
 }
+
+fn steer_towards_target(
+    target_velocity: vec2<f32>,
+    current_velocity: vec2<f32>,
+    max_speed: f32,
+    max_steering_strength: f32,
+    ) -> vec2<f32> {
+        return clamp_to_max((normalize(target_velocity) * max_speed - current_velocity), max_steering_strength);
+    }

@@ -28,13 +28,13 @@ impl Default for SimulationParametersUniformBufferContent {
         let view_radius = 0.02;
         Self {
             view_radius,
-            separation_radius_factor: 0.25,
-            cohesion_scale: 0.01,
-            aligment_scale: 0.025,
-            separation_scale: 0.012,
+            separation_radius_factor: 0.3,
+            cohesion_scale: 0.4,
+            aligment_scale: 0.9,
+            separation_scale: 0.9,
             repulsion_margin: 0.1,
-            repulsion_strength: 0.005,
-            boids_count: 2048,
+            repulsion_strength: 0.5,
+            boids_count: 1024,
             grid_size: grid_size_from_view_radius(view_radius),
         }
     }
@@ -66,7 +66,7 @@ impl SimulationParametersUniformBufferContent {
             );
 
             ui.add(
-                egui::Slider::from_get_set(0.0..=0.1, |optional_value: Option<f64>| {
+                egui::Slider::from_get_set(0.0..=1.0, |optional_value: Option<f64>| {
                     if let Some(v) = optional_value {
                         self.cohesion_scale = v as f32;
                     }
@@ -76,7 +76,7 @@ impl SimulationParametersUniformBufferContent {
             );
 
             ui.add(
-                egui::Slider::from_get_set(0.0..=0.1, |optional_value: Option<f64>| {
+                egui::Slider::from_get_set(0.0..=1.0, |optional_value: Option<f64>| {
                     if let Some(v) = optional_value {
                         self.aligment_scale = v as f32;
                     }
@@ -86,7 +86,7 @@ impl SimulationParametersUniformBufferContent {
             );
 
             ui.add(
-                egui::Slider::from_get_set(0.0..=0.1, |optional_value: Option<f64>| {
+                egui::Slider::from_get_set(0.0..=1.0, |optional_value: Option<f64>| {
                     if let Some(v) = optional_value {
                         self.separation_scale = v as f32;
                     }
@@ -105,7 +105,7 @@ impl SimulationParametersUniformBufferContent {
             );
 
             ui.add(
-                egui::Slider::from_get_set(0.0..=0.5, |optional_value: Option<f64>| {
+                egui::Slider::from_get_set(0.0..=1.0, |optional_value: Option<f64>| {
                     if let Some(v) = optional_value {
                         self.repulsion_strength = v as f32;
                     }
