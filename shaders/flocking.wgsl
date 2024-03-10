@@ -3,6 +3,7 @@ struct FlockingParameters {
     avoidance: vec2<f32>,
     avgVelocity: vec2<f32>,
     neighborCount: u32,
+    avoidCount: u32,
 }
 
 // detla time
@@ -13,6 +14,7 @@ fn flockingInit() -> FlockingParameters {
         vec2<f32>(0.0, 0.0),
         vec2<f32>(0.0, 0.0),
         vec2<f32>(0.0, 0.0),
+        0u,
         0u
     );
 }
@@ -35,13 +37,14 @@ fn flockingAccumulate(
     }
 
     // Visiblity angle
-    if (dot(normalize(current_to_other), normalize(currentVelocity)) < -0.5) {
+    if (dot(normalize(current_to_other), normalize(currentVelocity)) < -0.6) {
         return;
     }
     
     // Separation
     if (sqrt_distance < sqrt_view_radius * simulationParameters.separation_radius_factor * simulationParameters.separation_radius_factor) {
-        (*flockingParameters).avoidance -= current_to_other / sqrt_distance;
+        (*flockingParameters).avoidance -= current_to_other;
+        (*flockingParameters).avoidCount += 1u;
     }
 
     (*flockingParameters).avgVelocity += otherVelocity; // Aligment
@@ -69,21 +72,27 @@ fn computeNewVelocity(
 
     // Todo: make this a parameter
     var max_speed : f32 = 0.1;
+    var min_speed : f32 = 0.01;
     var max_steering_strength : f32 = max_speed * 2.0;
 
     if (flockingParameters.neighborCount > 0u) {
-        acceleration += steer_towards_target(flockingParameters.avgVelocity, currentVelocity, max_speed, max_steering_strength) * simulationParameters.aligment_scale;
-        acceleration += steer_towards_target(flockingParameters.avgPosition - currentPosition, currentVelocity, max_speed, max_steering_strength) * simulationParameters.cohesion_scale;
+        acceleration += normalize(flockingParameters.avgVelocity)  * simulationParameters.aligment_scale;
+        acceleration += normalize(flockingParameters.avgPosition - currentPosition) * simulationParameters.cohesion_scale;
 
-        // Avoid normalizing zero vector
-        if flockingParameters.avoidance.x != 0.0 || flockingParameters.avoidance.y != 0.0 {
-            acceleration += steer_towards_target(flockingParameters.avoidance, currentVelocity, max_speed, max_steering_strength) * simulationParameters.separation_scale;
+        if(flockingParameters.avoidCount > 0u) {
+            acceleration += normalize(flockingParameters.avoidance) * simulationParameters.separation_scale;
         }
     }
 
     acceleration += edge_repulsion(currentPosition, currentVelocity, simulationParameters.repulsion_margin/2.0, simulationParameters.repulsion_strength);
     
-    return clamp_to_max(currentVelocity + acceleration * detlaTime, max_speed);
+    var vel = currentVelocity + acceleration * detlaTime;
+
+    let vel_mag = length(currentVelocity);
+
+    // Limit speed
+    vel = (vel / vel_mag) * clamp(vel_mag, min_speed, max_speed);
+    return vel;
 }
 
 fn computeNewPosition(
@@ -121,24 +130,5 @@ fn edge_repulsion(
         edgeRepulsionForce.y = ((1.0 - repulsion_margin) - currentPosition.y);
     }
 
-
-
   return repulsion_strength * edgeRepulsionForce;
 }
-
-fn clamp_to_max(v: vec2<f32>, max_magnitude: f32) -> vec2<f32> {
-    var magnitude = length(v);
-    if (magnitude > max_magnitude) {
-        return v / magnitude * max_magnitude;
-    }
-    return v;
-}
-
-fn steer_towards_target(
-    target_velocity: vec2<f32>,
-    current_velocity: vec2<f32>,
-    max_speed: f32,
-    max_steering_strength: f32,
-    ) -> vec2<f32> {
-        return clamp_to_max((normalize(target_velocity) * max_speed - current_velocity), max_steering_strength);
-    }
